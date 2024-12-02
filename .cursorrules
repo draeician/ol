@@ -1,0 +1,195 @@
+# Cursor Rules
+
+## Important Files and Their Use:
+- **project_spec.md** - A comprehensive document detailing the project's objectives, scope, requirements, and functionalities
+- **CHANGELOG.md** - Records all version changes and updates
+- **ainotes.md** - A scratch pad for the AI to document observations, ideas, and insights related to the project.
+
+## SOP List to apply to any project:
+  - Reference the project_spec.md file when giving instructions to Composer. If the project_spec.md does not exist, then the first task will always be to start a conversation with the user and determine what is to be worked on.
+  - Each time the user asks you a query, write every user prompt that you receive to instructions.txt, each one separated by a new line and "---" between the prompts. You have to do this each time regardless of the type of prompt. Create the file if it doesn't exist. Do this along with other files you are creating or modifying.
+  - Each time the user asks you a query, write a running and evolving bullet point summary of the project to summary.txt. You have to do this each time regardless of the type of prompt. Create the file if it doesn't exist. Do this along with other files you are creating or modifying. Feel free to just update it rather than writing over it each time.
+  - When preparing a new release:
+    1. Update CHANGELOG.md with the new version section
+    2. Follow the format:
+       ```markdown
+       ## [VERSION] - YYYY-MM-DD
+       ### Added
+       - New features
+       
+       ### Changed
+       - Modified features
+       
+       ### Fixed
+       - Bug fixes
+       
+       ### Deprecated
+       - Soon-to-be removed features
+       
+       ### Removed
+       - Removed features
+       ```
+    3. List all significant changes since the last version
+    4. Keep entries clear and concise
+    5. Use present tense for change descriptions
+
+## Dataflow Diagrams:
+Use a combination of **flowchart diagrams**, **class diagrams**, **state diagrams**, and **context diagrams** to represent data flow in complex systems. When analyzing a code base, follow these steps to determine which diagrams are most suitable, and how to organize and link them effectively:
+
+### Context Diagrams
+- **Context diagrams** provide a high-level view of the system, showing interactions with external entities. Use these to understand how the code base interacts with external systems or users.  
+  This should be the entry point diagram that links to other more detailed diagrams.
+
+### Flowchart Diagrams
+- **Flowchart diagrams** illustrate the flow of information between components, mapping actions and data flow between agents, tools, or databases.  
+  Represent each component as a node, using arrows to show data flow.  
+  Create separate flowchart diagrams for each specific module or process, and reference them from the context diagram.
+
+### Class Diagrams
+- **Class diagrams** describe hierarchical relationships and roles of components, showcasing organization and shared attributes.  
+  Use these diagrams when analyzing the object-oriented structure of the codebase.  
+  Cross-reference relevant flowcharts and context diagrams for better linkage.
+
+### State Diagrams
+- **State diagrams** represent transitions or state changes in a system, illustrating how agents change roles or contexts with new data.  
+  Use these diagrams to capture significant state transitions present in the code logic.  
+  Include notes to indicate which processes or classes these state diagrams relate to.
+
+### Detailed Functional Breakdown
+- For more detailed analysis, use **Level 0 or Level 1 data flow diagrams** to illustrate data flow within individual processes or modules of the codebase.  
+  Link these to higher-level diagrams for better traceability.
+
+### General Guidance
+- Store each diagram in a **diagrams directory** or **dataflow directory**, using a consistent naming convention (e.g., "Context_Diagram", "Flowchart_ModuleA", "ClassDiagram_ModuleB") to make relationships clear.
+- Maintain an **overview index** file that explains the relationships between diagrams and acts as a guide to navigate through them.
+- Label each node to indicate its function, and use arrows to show interactions.
+- Use context diagrams for system boundaries, flowcharts for process flow, class diagrams for structure, and state diagrams for dynamic changes.
+- Include cross-references in each diagram (e.g., "See Flowchart_ModuleA for more details on Process X").
+
+## Project Structure and Best Practices:
+- Clear project structure with separate directories for source code, tests, docs, and config.
+- Modular design with distinct files for models, services, controllers, and utilities.
+- Configuration management using environment variables.
+- Robust error handling and logging, including context capture.
+- Comprehensive testing with pytest.
+- Detailed documentation using docstrings and README files.
+- Dependency management via virtual environments.
+- Code style consistency using Ruff.
+- CI/CD implementation with GitHub Actions or GitLab CI.
+- AI-friendly coding practices:
+  - Descriptive variable and function names.
+  - Type hints.
+  - Detailed comments for complex logic.
+  - Rich error context for debugging.
+
+### Commit Message Guidelines:
+1. Use the conventional commits format: `<type>[optional scope]: <description>`
+2. Keep the first line under 50 characters.
+3. Use imperative mood in the subject line.
+4. Provide a more detailed explanation in the body if necessary.
+5. Reference relevant issue numbers if applicable.
+
+## Global Cursor Rules
+These rules apply to all languages:
+
+1. Follow consistent code formatting and style guidelines.
+2. Write clear and descriptive variable and function names.
+3. Include appropriate comments and documentation.
+4. Handle errors and edge cases appropriately.
+5. Write modular and reusable code.
+6. Follow version control best practices.
+7. Implement proper testing.
+8. Consider performance implications.
+9. Maintain security best practices.
+10. Keep code DRY (Don't Repeat Yourself).
+# --- Delimiter ---
+# Rules for python
+You are an AI assistant specialized in Python development. Follow these guidelines:
+
+1. Adhere to PEP 8 Style Guide:
+- Ensure consistent indentation, naming conventions, and code layout.
+- Limit lines to 79 characters for code and 72 for docstrings.
+2. Use f-Strings for String Formatting:
+- Modern and concise way to format strings.
+- Example: f"The answer is {x}"
+3. Incorporate Type Hints:
+- Specify types for function parameters and return values.
+- Example: def add(a: int, b: int) -> int:
+4. Write Docstrings in Google Style:
+- Provide clear descriptions for classes, methods, and functions.
+- Include parameters, return values, and exceptions if any.
+5. Utilize List Comprehensions and Generator Expressions:
+- Make code more readable and concise.
+- Use generators for memory-efficient iteration.
+6. Use 'with' Statements for Resource Management:
+- Automatically handle opening and closing of files or resources.
+- Example: with open('file.txt') as f:
+7. Set Up Virtual Environments:
+- Isolate project dependencies.
+- Use pipx to create virtual environments.
+8. Follow the Zen of Python:
+- Prioritize readability, simplicity, and explicitness in code.
+9. Use snake_case for Variables and Functions, PascalCase for Classes:
+- Maintain consistency with naming conventions.
+10. Implement Error Handling with try-except Blocks:
+- Handle exceptions where necessary to prevent crashes.
+- Avoid broad exceptions; be specific.
+11. Leverage Built-in Functions and Standard Library Modules:
+- Use modules like os, sys, collections, etc., for common tasks.
+12. Prefer Context Managers Over try-finally:
+- Simplify resource management with with statements.
+13. Use Comprehensions for Concise Code:
+- Ensure that code remains readable and not overly complex.
+14. Follow the Liskov Substitution Principle:
+- Ensure that subclasses can replace their base classes without issues.
+15. Use 'is' Instead of '==' When Appropriate:
+- Check for identity rather than equality for singletons like None.
+16. Utilize zip, enumerate, and Tuple Unpacking:
+- Simplify loops and iterations over data structures.
+17. Use the logging Module for Debugging:
+- Configure logging levels and formats for better traceability.
+18. Avoid Using shell=True in subprocess Calls:
+- Prevent security risks associated with shell injection.
+19. Use NumPy for Array Operations:
+- Leverage NumPy's efficient array handling for numerical computations.
+20. Utilize Sphinx to generate documentation from Python docstrings, integrating it into the docs/ directory and employing the Napoleon extension for Google-style docstrings. Automate documentation builds with a CI/CD pipeline.
+21. Incorporate Mermaid for creating diagrams, using the sphinxcontrib-mermaid extension in Sphinx documentation. Ensure diagrams are current and clarify complex processes in the system architecture.
+
+Project structure should be setup as follows:
+my_project/
+├── README.md
+├── LICENSE
+├── requirements.txt
+├── setup.cfg
+├── pyproject.toml
+├── .gitignore
+├── .pre-commit-config.yaml
+├── src/
+│   └── my_package/
+│       ├── __init__.py
+│       ├── module1.py
+│       ├── module2.py
+│       └── subpackage/
+│           ├── __init__.py
+│           └── submodule.py
+├── tests/
+│   └── test_module1.py
+│   └── test_module2.py
+├── docs/
+│   └── conf.py
+│   └── index.rst
+└── scripts/
+    └── run_script.py
+
+Explanation of Project Structure
+README.md: Project description, installation instructions, and usage guidelines.
+LICENSE: License file defining the terms of use for the project.
+requirements.txt: Lists project dependencies for reproducibility.
+setup.cfg and pyproject.toml: Configuration files for setuptools and build system.
+.gitignore: Specifies files and directories to be ignored by Git.
+.pre-commit-config.yaml: Configuration for pre-commit hooks to enforce code quality.
+src/: Contains the source code organized into packages and modules.
+my_package/: The main package with submodules and subpackages.
+tests/: Holds unit tests for the codebase.
+docs/: Documentation files using Sphinx or another documentation generator.
+scripts/: Scripts for running the application or other tasks.

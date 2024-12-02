@@ -1,0 +1,22 @@
+# Changelog
+
+All notable changes to this project will be documented in this file.
+
+The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
+and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
+
+## [0.1.0] - 2023-12-02
+
+### Added
+- Initial release of the Ollama REPL wrapper
+- Command-line interface for interacting with Ollama
+- Support for both local and remote Ollama instances
+- Configuration system with YAML-based settings
+- Default prompts for different file types
+- Vision model support for image analysis
+- Debug mode for command inspection
+- Automatic model selection based on file type
+- Remote server support via OLLAMA_HOST environment variable
+- Template system for common tasks
+- Configuration directory at ~/.config/ol/
+- Comprehensive documentation and examples 
