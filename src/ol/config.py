@@ -66,14 +66,19 @@ class Config:
 
     def get_model_for_type(self, type_: str = 'text') -> str:
         """Get the model for the specified type."""
-        return self.config['models'].get(type_, DEFAULT_CONFIG['models']['text'])
+        model = self.config['models'].get(type_, DEFAULT_CONFIG['models']['text'])
+        print(f"DEBUG: get_model_for_type({type_}) -> {model}")  # Debug output
+        return model
 
     def get_last_used_model(self) -> Optional[str]:
         """Get the last used model."""
-        return self.config['models'].get('last_used')
+        model = self.config['models'].get('last_used')
+        print(f"DEBUG: get_last_used_model() -> {model}")  # Debug output
+        return model
 
     def set_last_used_model(self, model: str) -> None:
         """Set the last used model."""
+        print(f"DEBUG: set_last_used_model({model})")  # Debug output
         self.config['models']['last_used'] = model
         self._save_config(self.config)
 

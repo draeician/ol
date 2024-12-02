@@ -112,16 +112,43 @@ def run_ollama(prompt: str, model: str = None, files: Optional[List[str]] = None
     env = get_env()
     is_remote = 'OLLAMA_HOST' in env
     
+    # Process files first to determine their types
+    image_files = []
+    text_files = []
+    
+    if files:
+        for file_path in files:
+            # Convert to absolute path and expand user directory
+            abs_path = os.path.abspath(os.path.expanduser(file_path))
+            if not os.path.exists(abs_path):
+                print(f"Error: File not found: {file_path}", file=sys.stderr)
+                sys.exit(1)
+                
+            if is_image_file(abs_path):
+                image_files.append(abs_path)
+                if debug:
+                    print(f"Added image file: {file_path} ({abs_path})")
+            else:
+                text_files.append(abs_path)
+                if debug:
+                    print(f"Added text file: {file_path} ({abs_path})")
+    
     # Determine the model to use
     if model is None:
-        if files and any(is_image_file(f) for f in files):
+        # Clear any previous last_used model to ensure clean selection
+        config.set_last_used_model(None)
+        
+        if image_files and not text_files:
+            # Only use vision model if we have only image files
             model = config.get_model_for_type('vision')
+            if debug:
+                print(f"Selected vision model for image files: {model}")
         else:
-            model = config.get_last_used_model() or config.get_model_for_type('text')
+            # For text files or mixed content, always use text model
+            model = config.get_model_for_type('text')
+            if debug:
+                print(f"Selected text model: {model}")
     
-    # Save the model as last used
-    config.set_last_used_model(model)
-
     if debug:
         print("\n=== Debug Information ===")
         print(f"Model: {model}")
@@ -131,31 +158,27 @@ def run_ollama(prompt: str, model: str = None, files: Optional[List[str]] = None
             print(f"Ollama Host: {env['OLLAMA_HOST']}")
         print()
 
-    # Process files and build complete prompt
+    # Build the complete prompt
     complete_prompt = prompt
-    image_files = []
-    text_files = []
 
-    if files:
-        for file_path in files:
-            if is_image_file(file_path):
-                image_files.append(os.path.abspath(file_path))
+    # Add text file contents to prompt
+    for file_path in text_files:
+        try:
+            with open(file_path, 'r') as f:
+                file_content = f.read()
+                complete_prompt += f"\n\nContent of {os.path.basename(file_path)}:\n{file_content}"
                 if debug:
-                    print(f"Added image file: {file_path}")
-            else:
-                text_files.append(file_path)
-                with open(file_path, 'r') as f:
-                    file_content = f.read()
-                    complete_prompt += f"\n\nContent of {file_path}:\n{file_content}"
-                    if debug:
-                        print(f"Added content from {file_path}")
-                        print(f"File content length: {len(file_content)} characters")
+                    print(f"Added content from {os.path.basename(file_path)}")
+                    print(f"File content length: {len(file_content)} characters")
+        except IOError as e:
+            print(f"Error reading file {file_path}: {e}", file=sys.stderr)
+            sys.exit(1)
 
     if debug:
         print("\n=== Command Information ===")
         cmd = ['ollama', 'run', model]
         
-        if image_files:
+        if image_files and not text_files:  # Only show image command if we're only processing images
             if is_remote:
                 # For remote vision models, include image path in prompt
                 vision_prompt = f"{prompt} {' '.join(image_files)}"
@@ -173,7 +196,7 @@ def run_ollama(prompt: str, model: str = None, files: Optional[List[str]] = None
                   {'OLLAMA_HOST': env['OLLAMA_HOST']} if is_remote else None))
 
     try:
-        if image_files:
+        if image_files and not text_files:  # Only process as image if we have only image files
             if is_remote:
                 # For remote vision models, include image path in prompt
                 vision_prompt = f"{prompt} {' '.join(image_files)}"
@@ -206,31 +229,48 @@ def run_ollama(prompt: str, model: str = None, files: Optional[List[str]] = None
                         print(f"Error running Ollama", file=sys.stderr)
                         sys.exit(1)
         else:
-            # Handle text-only input
+            # Handle text-only input or mixed content with text model
             subprocess.run(['ollama', 'run', model], 
                          input=complete_prompt.encode(),
                          env=env,
                          check=True)
+            
+        # Only save last used model after successful execution
+        config.set_last_used_model(model)
     except subprocess.CalledProcessError as e:
         print(f"Error running Ollama: {e}", file=sys.stderr)
         sys.exit(1)
 
 def main(argv: Optional[Sequence[str]] = None) -> None:
-    """
-    Main entry point for the ol command.
-    
-    Args:
-        argv: Optional list of command line arguments for testing
-    """
+    """Main entry point for the ol command."""
     if argv is None:
         argv = sys.argv[1:]
 
-    parser = argparse.ArgumentParser(description='Ollama REPL wrapper')
-    parser.add_argument('-l', '--list', action='store_true', help='List available models')
-    parser.add_argument('-m', '--model', help='Model to use (default: from config)')
-    parser.add_argument('-d', '--debug', action='store_true', help='Show debug information')
-    parser.add_argument('prompt', nargs='?', help='Prompt to send to Ollama')
-    parser.add_argument('files', nargs='*', help='Files to inject into the prompt')
+    parser = argparse.ArgumentParser(
+        description='''Ollama REPL wrapper
+
+Environment Variables:
+    OLLAMA_HOST      Set to use a remote Ollama instance (e.g., OLLAMA_HOST=http://hostname:11434)
+                     For local instances, leave this unset.
+
+Remote Usage Examples:
+    OLLAMA_HOST=http://server:11434 ol "What is 2+2?"
+    OLLAMA_HOST=http://server:11434 ol -m codellama "Review this code" file.py
+    OLLAMA_HOST=http://server:11434 ol image.jpg  # Vision models require absolute paths for remote
+''',
+        formatter_class=argparse.RawDescriptionHelpFormatter
+    )
+    
+    parser.add_argument('-l', '--list', action='store_true', 
+                       help='List available models (works with both local and remote instances)')
+    parser.add_argument('-m', '--model', 
+                       help='Model to use (default: from config). Vision models need absolute paths for remote.')
+    parser.add_argument('-d', '--debug', action='store_true',
+                       help='Show debug information including equivalent shell commands')
+    parser.add_argument('prompt', nargs='?',
+                       help='Prompt to send to Ollama (optional if files are provided)')
+    parser.add_argument('files', nargs='*',
+                       help='Files to inject into the prompt. For remote vision models, use absolute paths.')
 
     args = parser.parse_args(argv)
     config = Config()
