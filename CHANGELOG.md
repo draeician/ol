@@ -5,6 +5,22 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.1.7] - 2024-03-19
+
+### Added
+- Support for detecting unsupported image formats
+- Improved error handling for unsupported image formats with helpful conversion suggestions
+
+### Changed
+- Refactored image format handling to use maintainable sets of supported and unsupported formats
+
+## [0.1.6] - 2024-03-19
+
+### Fixed
+- Fixed version update detection for pipx installations
+- Improved version comparison handling
+- Updated update command to use pipx reinstall
+
 ## [0.1.5] - 2024-03-19
 
 ### Fixed

@@ -1,6 +1,6 @@
 """Ollama REPL wrapper package."""
 
-__version__ = "0.1.5"
+__version__ = "0.1.7"
 
 from .init import initialize_ol
 

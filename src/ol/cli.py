@@ -29,10 +29,31 @@ def list_models() -> None:
         print(f"Error listing models: {e}", file=sys.stderr)
         sys.exit(1)
 
+def is_binary_file(file_path: str) -> bool:
+    """Check if a file is binary by reading its first few bytes."""
+    try:
+        with open(file_path, 'rb') as f:
+            # Try to decode first few bytes as text
+            chunk = f.read(1024)
+            try:
+                chunk.decode('utf-8')
+                return False
+            except UnicodeDecodeError:
+                return True
+    except IOError:
+        return False
+
 def is_image_file(file_path: str) -> bool:
     """Check if the file is an image."""
-    image_extensions = {'.jpg', '.jpeg', '.png', '.gif', '.bmp'}
-    return Path(file_path).suffix.lower() in image_extensions
+    supported_image_extensions = {'.jpg', '.jpeg', '.png', '.gif', '.bmp'}
+    unsupported_image_extensions = {'.webp', '.tiff', '.svg'}  # Can be expanded as needed
+    ext = Path(file_path).suffix.lower()
+    
+    if ext in unsupported_image_extensions:
+        print(f"Error: {ext} image format is not currently supported by Ollama. Please convert the image to a supported format ({', '.join(sorted(supported_image_extensions))}).", file=sys.stderr)
+        sys.exit(1)
+    
+    return ext in supported_image_extensions
 
 def get_file_type_and_prompt(file_path: str, config: Config) -> tuple[str, str]:
     """
@@ -124,11 +145,13 @@ def run_ollama(prompt: str, model: str = None, files: Optional[List[str]] = None
             if not os.path.exists(abs_path):
                 print(f"Error: File not found: {file_path}", file=sys.stderr)
                 sys.exit(1)
-                
+            
             if is_image_file(abs_path):
                 image_files.append(abs_path)
                 if debug:
                     print(f"Added image file: {file_path} ({abs_path})")
+            elif is_binary_file(abs_path):
+                print(f"Warning: Skipping binary file: {file_path}", file=sys.stderr)
             else:
                 text_files.append(abs_path)
                 if debug:
