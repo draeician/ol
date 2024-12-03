@@ -16,6 +16,7 @@ from packaging import version
 from . import __version__ as current_version
 
 GITHUB_RAW_URL = "https://raw.githubusercontent.com/draeician/ol/main/pyproject.toml"
+GITHUB_REPO_URL = "git+https://github.com/draeician/ol.git"
 CACHE_DURATION = 86400
 
 def extract_version_from_pyproject(content: str) -> Optional[str]:
@@ -121,7 +122,7 @@ class VersionManager:
                 return {
                     'version': version_str,
                     'html_url': 'https://github.com/draeician/ol/blob/main/CHANGELOG.md',
-                    'update_command': 'pipx reinstall ol'
+                    'update_command': f'pipx reinstall {GITHUB_REPO_URL}'
                 }
             self._debug("Could not extract version from pyproject.toml")
         except requests.RequestException as e:
@@ -182,7 +183,7 @@ class VersionManager:
         local_version = self.check_local_repository()
         if local_version:
             version_str = local_version.lstrip('v')
-            update_cmd = "pipx reinstall ol"
+            update_cmd = f'pipx reinstall {GITHUB_REPO_URL}'
             if not force:  # Only cache if not forcing
                 self._save_cache({
                     'version': version_str,

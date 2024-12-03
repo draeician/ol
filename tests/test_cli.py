@@ -86,6 +86,11 @@ def test_file_not_readable(tmp_path):
 def test_model_selection_for_file_types(mocker, tmp_path):
     """Test model selection logic for different file types."""
     mock_run = mocker.patch('subprocess.run')
+    mock_popen = mocker.patch('subprocess.Popen')
+    mock_popen.return_value.stdout = MagicMock()
+    mock_popen.return_value.stderr = MagicMock()
+    mock_popen.return_value.returncode = 0
+    mock_popen.return_value.wait.return_value = 0
     
     # Test text file
     text_file = tmp_path / "test.txt"
@@ -97,7 +102,12 @@ def test_model_selection_for_file_types(mocker, tmp_path):
     image_file = tmp_path / "test.jpg"
     image_file.write_bytes(b'fake_image_data')
     main(['-m', 'llava', 'test', str(image_file)])
-    assert mock_run.call_args[0][0] == ['ollama', 'run', 'llava']
+    
+    # Verify base64 and ollama processes were created
+    assert mock_popen.call_count == 2
+    calls = mock_popen.call_args_list
+    assert calls[0][0][0][0] == 'base64'  # First call should be base64
+    assert calls[1][0][0][0:3] == ['ollama', 'run', 'llava']  # Second call should be ollama with llava model
 
 def test_default_prompts(mocker, tmp_path):
     """Test default prompt selection for different file types."""
@@ -162,16 +172,23 @@ def test_image_processing_local(mocker, tmp_path):
 
 def test_image_processing_remote(mocker, tmp_path):
     """Test handling of remote image files."""
-    mock_run = mocker.patch('subprocess.run')
+    mock_popen = mocker.patch('subprocess.Popen')
+    mock_popen.return_value.stdout = MagicMock()
+    mock_popen.return_value.stderr = MagicMock()
+    mock_popen.return_value.returncode = 0
+    mock_popen.return_value.wait.return_value = 0
+    
     with patch.dict(os.environ, {'OLLAMA_HOST': 'http://test:11434'}):
         image_file = tmp_path / "test.jpg"
         image_file.write_bytes(b'fake_image_data')
         
         main(['-m', 'llava', 'describe', str(image_file)])
         
-        # Verify single ollama process with image path
-        mock_run.assert_called_once()
-        assert b'describe' in mock_run.call_args[1]['input']
+        # Verify base64 and ollama processes were created
+        assert mock_popen.call_count == 2
+        calls = mock_popen.call_args_list
+        assert calls[0][0][0][0] == 'base64'  # First call should be base64
+        assert calls[1][0][0][0:3] == ['ollama', 'run', 'llava']  # Second call should be ollama with llava model
 
 def test_mixed_content(mocker, tmp_path):
     """Test handling of mixed content (images + text)."""
