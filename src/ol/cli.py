@@ -309,7 +309,7 @@ def main(argv: Optional[Sequence[str]] = None) -> None:
     # Handle version management commands first
     if args.version or args.check_updates or args.update:
         from .version import VersionManager
-        vm = VersionManager()
+        vm = VersionManager(debug=args.debug)
         
         if args.version:
             print(vm.get_version_info())
