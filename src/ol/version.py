@@ -2,6 +2,7 @@
 
 import json
 import os
+import sys
 import time
 import re
 from datetime import datetime, timezone
@@ -146,29 +147,34 @@ class VersionManager:
             self._debug(f"Error checking local repository: {e}")
         return None
 
-    def get_latest_version(self) -> Tuple[Optional[str], Optional[str], Optional[str]]:
+    def get_latest_version(self, force: bool = False) -> Tuple[Optional[str], Optional[str], Optional[str]]:
         """
         Get the latest version information.
+        
+        Args:
+            force: If True, bypass the cache and always fetch latest version
         
         Returns:
             Tuple of (version, release_notes_url, update_command)
         """
         # Check cache first
         self._debug("Checking for latest version")
-        cache = self._load_cache()
-        if cache:
-            data = cache['data']
-            self._debug(f"Using cached version: {data.get('version')}")
-            return (
-                data.get('version'),
-                data.get('html_url'),
-                data.get('update_command')
-            )
+        if not force:
+            cache = self._load_cache()
+            if cache:
+                data = cache['data']
+                self._debug(f"Using cached version: {data.get('version')}")
+                return (
+                    data.get('version'),
+                    data.get('html_url'),
+                    data.get('update_command')
+                )
 
         # Try fetching from GitHub
         latest = self.fetch_latest_version()
         if latest:
-            self._save_cache(latest)
+            if not force:  # Only cache if not forcing
+                self._save_cache(latest)
             return latest['version'], latest['html_url'], latest['update_command']
 
         # Try local repository as fallback
@@ -177,19 +183,23 @@ class VersionManager:
         if local_version:
             version_str = local_version.lstrip('v')
             update_cmd = "pipx reinstall ol"
-            self._save_cache({
-                'version': version_str,
-                'html_url': None,
-                'update_command': update_cmd
-            })
+            if not force:  # Only cache if not forcing
+                self._save_cache({
+                    'version': version_str,
+                    'html_url': None,
+                    'update_command': update_cmd
+                })
             return version_str, None, update_cmd
 
         self._debug("Could not determine latest version")
         return None, None, None
 
-    def check_for_updates(self) -> Tuple[bool, Optional[str], Optional[str], Optional[str]]:
+    def check_for_updates(self, force: bool = False) -> Tuple[bool, Optional[str], Optional[str], Optional[str]]:
         """
         Check if updates are available.
+        
+        Args:
+            force: If True, bypass the cache and always check for updates
         
         Returns:
             Tuple of (update_available, latest_version, release_notes_url, update_command)
@@ -198,17 +208,17 @@ class VersionManager:
         
         # Check if we should perform update check
         last_check = info.get('last_check')
-        if last_check and time.time() - last_check < info['check_frequency']:
+        if not force and last_check and time.time() - last_check < info['check_frequency']:
             time_since = time.time() - last_check
             self._debug(f"Skipping check (last check was {time_since:.0f} seconds ago)")
-            return False, None, None, None
+            return None, None, None, None  # Return None to indicate no check was performed
 
         # Update last check time
         info['last_check'] = time.time()
         self._save_version_info(info)
 
         self._debug(f"Current version: {current_version}")
-        latest_version, notes_url, update_cmd = self.get_latest_version()
+        latest_version, notes_url, update_cmd = self.get_latest_version(force=force)
         if not latest_version:
             return False, None, None, None
 

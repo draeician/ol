@@ -316,7 +316,8 @@ def main(argv: Optional[Sequence[str]] = None) -> None:
             return
         
         if args.check_updates or args.update:
-            update_available, latest_version, notes_url, update_cmd = vm.check_for_updates()
+            # Force check when explicitly requested
+            update_available, latest_version, notes_url, update_cmd = vm.check_for_updates(force=True)
             if update_available and latest_version and update_cmd:
                 print(vm.format_update_message(latest_version, notes_url, update_cmd))
                 if args.update:
