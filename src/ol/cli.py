@@ -6,6 +6,7 @@ import os
 import subprocess
 import sys
 import shlex
+import textwrap
 from pathlib import Path
 from typing import List, Optional, Sequence, Dict
 from .config import Config
@@ -243,33 +244,28 @@ def run_ollama(prompt: str, model: str = None, files: Optional[List[str]] = None
 
 def main(argv: Optional[Sequence[str]] = None) -> None:
     """Main entry point for the ol command."""
-    if argv is None:
-        argv = sys.argv[1:]
-
     parser = argparse.ArgumentParser(
-        description='''Ollama REPL wrapper
-
-Environment Variables:
-    OLLAMA_HOST      Set to use a remote Ollama instance (e.g., OLLAMA_HOST=http://hostname:11434)
-                     For local instances, leave this unset.
-
-Remote Usage Examples:
-    OLLAMA_HOST=http://server:11434 ol "What is 2+2?"
-    OLLAMA_HOST=http://server:11434 ol -m codellama "Review this code" file.py
-    OLLAMA_HOST=http://server:11434 ol image.jpg  # Vision models require absolute paths for remote
-''',
-        formatter_class=argparse.RawDescriptionHelpFormatter
+        description='Ollama REPL wrapper',
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+        epilog=textwrap.dedent('''
+            Examples:
+              ol "Explain this code" main.py
+              ol -m codellama "Review for security issues" *.py
+              ol "What's in this image?" image.jpg
+              
+              # With remote Ollama instance:
+              OLLAMA_HOST=http://server:11434 ol "Your prompt" file.txt
+        ''')
     )
-    
+
     # Version management arguments
-    version_group = parser.add_argument_group('Version Management')
-    version_group.add_argument('--version', action='store_true',
-                             help='Show current version information')
-    version_group.add_argument('--check-updates', action='store_true',
-                             help='Check for available updates')
-    version_group.add_argument('--update', action='store_true',
-                             help='Update to the latest version')
-    
+    parser.add_argument('--version', action='store_true',
+                       help='Show version information')
+    parser.add_argument('--check-updates', action='store_true',
+                       help='Check for available updates')
+    parser.add_argument('--update', action='store_true',
+                       help='Update to the latest version if available')
+
     # Existing arguments
     parser.add_argument('-l', '--list', action='store_true', 
                        help='List available models (works with both local and remote instances)')
@@ -283,6 +279,9 @@ Remote Usage Examples:
                        help='Files to inject into the prompt. For remote vision models, use absolute paths.')
 
     args = parser.parse_args(argv)
+
+    # Initialize config with debug flag
+    config = Config(debug=args.debug)
 
     # Handle version management commands first
     if args.version or args.check_updates or args.update:
@@ -308,8 +307,6 @@ Remote Usage Examples:
             else:
                 print("You are using the latest version.")
             return
-
-    config = Config()
 
     if args.list:
         if args.debug:

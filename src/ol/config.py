@@ -28,10 +28,11 @@ DEFAULT_CONFIG = {
 class Config:
     """Configuration manager for ol."""
 
-    def __init__(self):
+    def __init__(self, debug: bool = False):
         """Initialize the configuration manager."""
         self.config_dir = Path.home() / '.config' / 'ol'
         self.config_file = self.config_dir / 'config.yaml'
+        self.debug = debug
         self.config = self._load_config()
 
     def _load_config(self) -> Dict[str, Any]:
@@ -53,7 +54,7 @@ class Config:
                 merged.update(config)
                 return merged
         except Exception as e:
-            print(f"Error loading config: {e}. Using defaults.", file=os.sys.stderr)
+            print(f"Error loading config: {e}", file=os.sys.stderr)
             return DEFAULT_CONFIG.copy()
 
     def _save_config(self, config: Dict[str, Any]) -> None:
@@ -67,18 +68,21 @@ class Config:
     def get_model_for_type(self, type_: str = 'text') -> str:
         """Get the model for the specified type."""
         model = self.config['models'].get(type_, DEFAULT_CONFIG['models']['text'])
-        print(f"DEBUG: get_model_for_type({type_}) -> {model}")  # Debug output
+        if self.debug:
+            print(f"DEBUG: get_model_for_type({type_}) -> {model}")
         return model
 
     def get_last_used_model(self) -> Optional[str]:
         """Get the last used model."""
         model = self.config['models'].get('last_used')
-        print(f"DEBUG: get_last_used_model() -> {model}")  # Debug output
+        if self.debug:
+            print(f"DEBUG: get_last_used_model() -> {model}")
         return model
 
     def set_last_used_model(self, model: str) -> None:
         """Set the last used model."""
-        print(f"DEBUG: set_last_used_model({model})")  # Debug output
+        if self.debug:
+            print(f"DEBUG: set_last_used_model({model})")
         self.config['models']['last_used'] = model
         self._save_config(self.config)
 
