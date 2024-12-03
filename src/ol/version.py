@@ -14,7 +14,7 @@ from packaging import version
 from . import __version__ as current_version
 
 GITHUB_API_URL = "https://api.github.com/repos/draeician/ol/releases/latest"
-CACHE_DURATION = 86400  # 24 hours in seconds
+CACHE_DURATION = 86400
 
 class VersionManager:
     """Manages version checking and updates for ol."""
@@ -129,30 +129,29 @@ class VersionManager:
                 data.get('update_command')
             )
 
-        # Try local repository
-        local_version = self.check_local_repository()
-        if local_version:
-            self._save_cache({
-                'version': local_version,
-                'html_url': None,
-                'update_command': 'git pull && pip install -e .'
-            })
-            return local_version, None, 'git pull && pip install -e .'
-
-        # Try GitHub API
+        # Try GitHub API first (preferred method)
         release = self.fetch_github_release()
         if release:
             version_str = release['tag_name'].lstrip('v')
+            update_cmd = "pipx reinstall ol"  # Always use pipx reinstall
             self._save_cache({
                 'version': version_str,
                 'html_url': release['html_url'],
-                'update_command': f"pip install git+https://github.com/draeician/ol.git@{release['tag_name']}"
+                'update_command': update_cmd
             })
-            return (
-                version_str,
-                release['html_url'],
-                f"pip install git+https://github.com/draeician/ol.git@{release['tag_name']}"
-            )
+            return version_str, release['html_url'], update_cmd
+
+        # Try local repository as fallback
+        local_version = self.check_local_repository()
+        if local_version:
+            version_str = local_version.lstrip('v')
+            update_cmd = "pipx reinstall ol"
+            self._save_cache({
+                'version': version_str,
+                'html_url': None,
+                'update_command': update_cmd
+            })
+            return version_str, None, update_cmd
 
         return None, None, None
 
@@ -178,10 +177,13 @@ class VersionManager:
         if not latest_version:
             return False, None, None, None
 
-        current = version.parse(current_version)
-        latest = version.parse(latest_version)
-
-        return latest > current, latest_version, notes_url, update_cmd
+        try:
+            current = version.parse(current_version)
+            latest = version.parse(latest_version)
+            return latest > current, latest_version, notes_url, update_cmd
+        except version.InvalidVersion:
+            # If version parsing fails, try string comparison
+            return latest_version != current_version, latest_version, notes_url, update_cmd
 
     def get_version_info(self) -> str:
         """Get formatted version information."""

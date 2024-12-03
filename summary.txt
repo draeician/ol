@@ -1,6 +1,6 @@
 Project Status Summary:
 
-Current Version: 0.1.5 (Stable)
+Current Version: 0.1.6 (Stable)
 
 Key Milestones:
 - Initial project setup and structure completed
@@ -11,10 +11,13 @@ Key Milestones:
 - Debug output now properly controlled by -d flag
 - Fixed missing imports
 - Confirmed stable with comprehensive testing
+- Version update detection working correctly with pipx
 
 Recent Changes:
-- Fixed missing textwrap import in cli.py
-- Updated version to 0.1.5
+- Fixed version update detection for pipx installations
+- Improved version comparison handling
+- Updated update command to use pipx reinstall
+- Updated version to 0.1.6
 - All tests passing (30/30)
 - Verified stability with manual testing:
   * Version display
@@ -22,6 +25,7 @@ Recent Changes:
   * Debug output
   * Basic prompts
   * Remote server connection
+  * Update detection
 
 Next Steps:
 - Continue monitoring for any bug reports

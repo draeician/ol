@@ -214,6 +214,7 @@ scripts/: Scripts for running the application or other tasks.
 ## Git Operations
 1. Multi-line commit messages:
    - NEVER use newlines in the command directly
+   - ALWAYS verify the date and time before creating a commit message
    - Use multiple -m flags: `git commit -m "title" -m "point 1" -m "point 2"`
    - Format:
      ```bash
