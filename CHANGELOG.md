@@ -5,6 +5,19 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.1.1] - 2024-03-19
+
+### Added
+- Comprehensive test suite with 29 test cases
+- Tests for error handling, configuration, image processing
+- Tests for input processing, remote server handling
+- Tests for command formatting and shell escaping
+
+### Fixed
+- Fixed model selection logic in tests
+- Fixed subprocess mocking for image processing
+- Fixed environment variable handling in tests
+
 ## [0.1.0] - 2023-12-02
 
 ### Added
