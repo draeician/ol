@@ -8,7 +8,7 @@ from typing import Dict, Optional, Any
 DEFAULT_CONFIG = {
     'models': {
         'text': 'llama3.2',
-        'vision': 'llava',
+        'vision': 'llama3.2-vision',
         'last_used': None
     },
     'default_prompts': {

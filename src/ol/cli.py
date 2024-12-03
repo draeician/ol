@@ -203,9 +203,8 @@ def run_ollama(prompt: str, model: str = None, files: Optional[List[str]] = None
         cmd = ['ollama', 'run', model]
         
         if image_files and not text_files:  # Only show image command if we're only processing images
-            # Always use base64 for images, regardless of local/remote
             print("Equivalent shell command:")
-            print(f"base64 -w0 {shlex.quote(image_files[0])} | ollama run {shlex.quote(model)} {shlex.quote(prompt)}")
+            print(f"ollama run {shlex.quote(model)} {shlex.quote(prompt)} {shlex.quote(image_files[0])}")
         else:
             # Show the regular command for text
             print("Equivalent shell command:")
@@ -214,36 +213,18 @@ def run_ollama(prompt: str, model: str = None, files: Optional[List[str]] = None
 
     try:
         if image_files and not text_files:  # Only process as image if we have only image files
-            # Always use base64 for images, regardless of local/remote
+            # Pass image file directly to ollama for both local and remote
             for img_file in image_files:
-                base64_process = subprocess.Popen(['base64', '-w0', img_file], 
-                                               stdout=subprocess.PIPE,
-                                               stderr=subprocess.PIPE)
-                
-                ollama_process = subprocess.Popen(['ollama', 'run', model, prompt],
-                                               stdin=base64_process.stdout,
-                                               env=env)
-                
-                # Close base64's stdout to signal EOF to ollama
-                base64_process.stdout.close()
-                
-                # Wait for both processes to complete
-                base64_process.wait()
-                ollama_process.wait()
-                
-                if base64_process.returncode != 0:
-                    print(f"Error encoding image: {base64_process.stderr.read().decode()}", file=sys.stderr)
-                    sys.exit(1)
-                if ollama_process.returncode != 0:
-                    print(f"Error running Ollama", file=sys.stderr)
-                    sys.exit(1)
+                subprocess.run(['ollama', 'run', model, prompt, img_file],
+                            env=env,
+                            check=True)
         else:
             # Handle text-only input or mixed content with text model
             subprocess.run(['ollama', 'run', model], 
                          input=complete_prompt.encode(),
                          env=env,
                          check=True)
-            
+
         # Only save last used model after successful execution
         config.set_last_used_model(model)
     except subprocess.CalledProcessError as e:

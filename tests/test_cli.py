@@ -86,28 +86,20 @@ def test_file_not_readable(tmp_path):
 def test_model_selection_for_file_types(mocker, tmp_path):
     """Test model selection logic for different file types."""
     mock_run = mocker.patch('subprocess.run')
-    mock_popen = mocker.patch('subprocess.Popen')
-    mock_popen.return_value.stdout = MagicMock()
-    mock_popen.return_value.stderr = MagicMock()
-    mock_popen.return_value.returncode = 0
-    mock_popen.return_value.wait.return_value = 0
     
     # Test text file
     text_file = tmp_path / "test.txt"
     text_file.write_text("content")
     main(['-m', 'llama2', 'test', str(text_file)])
-    assert mock_run.call_args[0][0] == ['ollama', 'run', 'llama2']
+    assert mock_run.call_args_list[0][0][0] == ['ollama', 'run', 'llama2']
     
     # Test image file
     image_file = tmp_path / "test.jpg"
     image_file.write_bytes(b'fake_image_data')
     main(['-m', 'llava', 'test', str(image_file)])
     
-    # Verify base64 and ollama processes were created
-    assert mock_popen.call_count == 2
-    calls = mock_popen.call_args_list
-    assert calls[0][0][0][0] == 'base64'  # First call should be base64
-    assert calls[1][0][0][0:3] == ['ollama', 'run', 'llava']  # Second call should be ollama with llava model
+    # Verify ollama was called with the image file path
+    assert mock_run.call_args_list[1][0][0] == ['ollama', 'run', 'llava', 'test', str(image_file)]
 
 def test_default_prompts(mocker, tmp_path):
     """Test default prompt selection for different file types."""
@@ -149,11 +141,6 @@ def test_ollama_host_handling(mocker):
 def test_image_processing_local(mocker, tmp_path):
     """Test handling of local image files."""
     mock_run = mocker.patch('subprocess.run')
-    mock_popen = mocker.patch('subprocess.Popen')
-    mock_popen.return_value.stdout = MagicMock()
-    mock_popen.return_value.stderr = MagicMock()
-    mock_popen.return_value.returncode = 0
-    mock_popen.return_value.wait.return_value = 0
     
     image_file = tmp_path / "test.jpg"
     image_file.write_bytes(b'fake_image_data')
@@ -162,21 +149,17 @@ def test_image_processing_local(mocker, tmp_path):
     with patch.dict(os.environ, {}, clear=True):
         main(['-m', 'llava', 'describe', str(image_file)])
     
-    # Verify base64 and ollama processes were created
-    assert mock_popen.call_count == 2
-    
-    # Verify correct commands were used
-    calls = mock_popen.call_args_list
-    assert calls[0][0][0][0] == 'base64'  # First call should be base64
-    assert calls[1][0][0][0] == 'ollama'  # Second call should be ollama
+    # Verify ollama was called with the image file path
+    mock_run.assert_called_once_with(
+        ['ollama', 'run', 'llava', 'describe', str(image_file)],
+        env=mocker.ANY,
+        check=True
+    )
 
 def test_image_processing_remote(mocker, tmp_path):
     """Test handling of remote image files."""
-    mock_popen = mocker.patch('subprocess.Popen')
-    mock_popen.return_value.stdout = MagicMock()
-    mock_popen.return_value.stderr = MagicMock()
-    mock_popen.return_value.returncode = 0
-    mock_popen.return_value.wait.return_value = 0
+    mock_run = mocker.patch('subprocess.run')
+    mock_run.return_value.returncode = 0  # Ensure success
     
     with patch.dict(os.environ, {'OLLAMA_HOST': 'http://test:11434'}):
         image_file = tmp_path / "test.jpg"
@@ -184,11 +167,12 @@ def test_image_processing_remote(mocker, tmp_path):
         
         main(['-m', 'llava', 'describe', str(image_file)])
         
-        # Verify base64 and ollama processes were created
-        assert mock_popen.call_count == 2
-        calls = mock_popen.call_args_list
-        assert calls[0][0][0][0] == 'base64'  # First call should be base64
-        assert calls[1][0][0][0:3] == ['ollama', 'run', 'llava']  # Second call should be ollama with llava model
+        # Verify ollama was called with the image file path
+        mock_run.assert_called_once_with(
+            ['ollama', 'run', 'llava', 'describe', str(image_file)],
+            env=mocker.ANY,
+            check=True
+        )
 
 def test_mixed_content(mocker, tmp_path):
     """Test handling of mixed content (images + text)."""

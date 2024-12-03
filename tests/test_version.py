@@ -73,7 +73,7 @@ description = "A Python wrapper for the Ollama REPL command"
     assert latest is not None
     assert latest['version'] == '1.0.0'
     assert 'CHANGELOG.md' in latest['html_url']
-    assert 'pipx reinstall ol' == latest['update_command']
+    assert latest['update_command'] == 'pipx reinstall git+https://github.com/draeician/ol.git'
 
 @patch('ol.version.git.Repo')
 def test_local_repository_check(mock_repo, version_manager):
