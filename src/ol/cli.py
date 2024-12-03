@@ -277,15 +277,14 @@ Remote Usage Examples:
                        help='Model to use (default: from config). Vision models need absolute paths for remote.')
     parser.add_argument('-d', '--debug', action='store_true',
                        help='Show debug information including equivalent shell commands')
-    parser.add_argument('prompt', nargs='?',
+    parser.add_argument('prompt', nargs='?', default=None,
                        help='Prompt to send to Ollama (optional if files are provided)')
     parser.add_argument('files', nargs='*',
                        help='Files to inject into the prompt. For remote vision models, use absolute paths.')
 
     args = parser.parse_args(argv)
-    config = Config()
 
-    # Handle version management commands
+    # Handle version management commands first
     if args.version or args.check_updates or args.update:
         from .version import VersionManager
         vm = VersionManager()
@@ -310,16 +309,7 @@ Remote Usage Examples:
                 print("You are using the latest version.")
             return
 
-    # Check for updates on normal command execution (if enabled)
-    try:
-        from .version import VersionManager
-        vm = VersionManager()
-        update_available, latest_version, notes_url, update_cmd = vm.check_for_updates()
-        if update_available and latest_version and update_cmd:
-            print(vm.format_update_message(latest_version, notes_url, update_cmd))
-            print()  # Add a blank line before continuing
-    except Exception:
-        pass  # Silently ignore any version check errors
+    config = Config()
 
     if args.list:
         if args.debug:
@@ -348,6 +338,17 @@ Remote Usage Examples:
     elif not args.prompt and not args.files:
         parser.print_help()
         sys.exit(1)
+
+    # Check for updates on normal command execution (if enabled)
+    try:
+        from .version import VersionManager
+        vm = VersionManager()
+        update_available, latest_version, notes_url, update_cmd = vm.check_for_updates()
+        if update_available and latest_version and update_cmd:
+            print(vm.format_update_message(latest_version, notes_url, update_cmd))
+            print()  # Add a blank line before continuing
+    except Exception:
+        pass  # Silently ignore any version check errors
 
     run_ollama(args.prompt, args.model, args.files, args.debug)
 
