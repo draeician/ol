@@ -193,3 +193,96 @@ my_package/: The main package with submodules and subpackages.
 tests/: Holds unit tests for the codebase.
 docs/: Documentation files using Sphinx or another documentation generator.
 scripts/: Scripts for running the application or other tasks.
+
+# Agent Instructions for Common Issues
+
+## Package Management
+1. ALWAYS use pipx for global package management:
+   - Installation: `pipx install .`
+   - Reinstallation: `pipx reinstall ol`
+   - Running tests: `cd /home/draeician/.local/share/pipx/venvs/ol && source bin/activate && cd - && pytest -v`
+   - NEVER use `pip install` directly
+   - NEVER try to create new virtual environments
+
+## Testing
+1. For running tests:
+   - ALWAYS activate the pipx virtual environment first
+   - Use the full path: `/home/draeician/.local/share/pipx/venvs/ol`
+   - Remember to return to the original directory after activation
+   - Command template: `cd /home/draeician/.local/share/pipx/venvs/ol && source bin/activate && cd - && pytest -v`
+
+## Git Operations
+1. Multi-line commit messages:
+   - NEVER use newlines in the command directly
+   - Use multiple -m flags: `git commit -m "title" -m "point 1" -m "point 2"`
+   - Format:
+     ```bash
+     git commit -m "type: main message" \
+               -m "- point 1" \
+               -m "- point 2"
+     ```
+
+## Version Management
+1. When fixing bugs:
+   - ALWAYS update version in ALL files:
+     * src/ol/__init__.py
+     * pyproject.toml
+     * CHANGELOG.md
+   - Follow semantic versioning:
+     * Patch (0.0.X) for bug fixes
+     * Minor (0.X.0) for new features
+     * Major (X.0.0) for breaking changes
+   - ALWAYS update summary.txt with version changes
+
+## Debug Output
+1. When modifying debug functionality:
+   - Check both cli.py and config.py
+   - Ensure debug flag is passed through all layers
+   - Test with and without -d flag
+   - Verify no debug output shows without -d flag
+
+## File Management
+1. When adding new files:
+   - Update MANIFEST.in for package data
+   - Update .gitignore if needed
+   - Check file permissions
+   - Ensure proper line endings (LF for Linux)
+
+## Error Handling
+1. When encountering errors:
+   - Check logs in ~/.local/share/pipx/venvs/ol/
+   - Verify pipx environment is active
+   - Check file permissions
+   - Verify package installation status
+
+## Documentation
+1. After any changes:
+   - Update CHANGELOG.md
+   - Update summary.txt
+   - Update README.md if needed
+   - Document any new dependencies
+
+## Command Line Interface
+1. When modifying CLI:
+   - Check all imports
+   - Test all flag combinations
+   - Verify help text
+   - Test with and without arguments
+   - Check error messages
+
+## Best Practices
+1. ALWAYS:
+   - Run full test suite after changes
+   - Update version numbers consistently
+   - Document changes in CHANGELOG.md
+   - Update summary.txt
+   - Test manually before committing
+   - Use descriptive commit messages
+   - Push changes after committing
+
+## Environment Variables
+1. Remember to handle:
+   - OLLAMA_HOST for remote connections
+   - Debug flags
+   - Version information
+   - Configuration paths
