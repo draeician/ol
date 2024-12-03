@@ -210,6 +210,19 @@ def run_ollama(prompt: str, model: str = None, files: Optional[List[str]] = None
             print("Equivalent shell command:")
             print(format_shell_command(cmd, complete_prompt, 
                   {'OLLAMA_HOST': env['OLLAMA_HOST']} if is_remote else None))
+            print("\n=== Prompt Sequence ===")
+            print("1. User prompt:")
+            print("---")
+            print(prompt)
+            print("---")
+            if text_files:
+                print("\n2. File contents:")
+                for file_path in text_files:
+                    print(f"\nFile: {os.path.basename(file_path)}")
+                    print("---")
+                    with open(file_path, 'r') as f:
+                        print(f.read())
+                    print("---")
 
     try:
         if image_files and not text_files:  # Only process as image if we have only image files
@@ -308,7 +321,7 @@ def main(argv: Optional[Sequence[str]] = None) -> None:
         return
 
     # Check if the first positional argument is a file
-    if args.prompt and (Path(args.prompt).exists() or args.prompt.startswith('~')):
+    if args.prompt and len(args.prompt) < 255 and not '\n' in args.prompt and (Path(args.prompt).exists() or args.prompt.startswith('~')):
         # If it's a file, move it to files list and set prompt to None
         expanded_path = str(Path(args.prompt).expanduser())
         if Path(expanded_path).exists():
