@@ -3,6 +3,7 @@
 import json
 import os
 import time
+import re
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Dict, Optional, Tuple
@@ -13,8 +14,13 @@ from packaging import version
 
 from . import __version__ as current_version
 
-GITHUB_API_URL = "https://api.github.com/repos/draeician/ol/releases/latest"
+GITHUB_RAW_URL = "https://raw.githubusercontent.com/draeician/ol/main/pyproject.toml"
 CACHE_DURATION = 86400
+
+def extract_version_from_pyproject(content: str) -> Optional[str]:
+    """Extract version from pyproject.toml content."""
+    match = re.search(r'version\s*=\s*["\']([^"\']+)["\']', content)
+    return match.group(1) if match else None
 
 class VersionManager:
     """Manages version checking and updates for ol."""
@@ -91,15 +97,23 @@ class VersionManager:
         except Exception as e:
             print(f"Error saving cache: {e}")
 
-    def fetch_github_release(self) -> Optional[Dict]:
-        """Fetch latest release information from GitHub."""
+    def fetch_latest_version(self) -> Optional[Dict]:
+        """Fetch latest version information from GitHub."""
         try:
-            response = requests.get(GITHUB_API_URL, timeout=5)
+            response = requests.get(GITHUB_RAW_URL, timeout=5)
             response.raise_for_status()
-            return response.json()
+            version_str = extract_version_from_pyproject(response.text)
+            if version_str:
+                return {
+                    'version': version_str,
+                    'html_url': 'https://github.com/draeician/ol/blob/main/CHANGELOG.md',
+                    'update_command': 'pipx reinstall ol'
+                }
         except requests.RequestException as e:
-            print(f"Error fetching GitHub release: {e}")
+            if isinstance(e, requests.exceptions.HTTPError) and e.response.status_code == 404:
+                print("Warning: Could not fetch latest version from GitHub", file=os.sys.stderr)
             return None
+        return None
 
     def check_local_repository(self) -> Optional[str]:
         """Check local git repository for version information."""
@@ -129,17 +143,11 @@ class VersionManager:
                 data.get('update_command')
             )
 
-        # Try GitHub API first (preferred method)
-        release = self.fetch_github_release()
-        if release:
-            version_str = release['tag_name'].lstrip('v')
-            update_cmd = "pipx reinstall ol"  # Always use pipx reinstall
-            self._save_cache({
-                'version': version_str,
-                'html_url': release['html_url'],
-                'update_command': update_cmd
-            })
-            return version_str, release['html_url'], update_cmd
+        # Try fetching from GitHub
+        latest = self.fetch_latest_version()
+        if latest:
+            self._save_cache(latest)
+            return latest['version'], latest['html_url'], latest['update_command']
 
         # Try local repository as fallback
         local_version = self.check_local_repository()

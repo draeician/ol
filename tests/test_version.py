@@ -58,18 +58,22 @@ def test_cache_expiration(version_manager):
     assert version_manager._load_cache() is None
 
 @patch('ol.version.requests.get')
-def test_github_release_fetching(mock_get, version_manager):
-    """Test GitHub release fetching."""
+def test_latest_version_fetching(mock_get, version_manager):
+    """Test latest version fetching from pyproject.toml."""
     mock_response = MagicMock()
-    mock_response.json.return_value = {
-        'tag_name': 'v1.0.0',
-        'html_url': 'test_url'
-    }
+    mock_response.text = '''
+[project]
+name = "ol"
+version = "1.0.0"
+description = "A Python wrapper for the Ollama REPL command"
+'''
     mock_get.return_value = mock_response
     
-    release = version_manager.fetch_github_release()
-    assert release is not None
-    assert release['tag_name'] == 'v1.0.0'
+    latest = version_manager.fetch_latest_version()
+    assert latest is not None
+    assert latest['version'] == '1.0.0'
+    assert 'CHANGELOG.md' in latest['html_url']
+    assert 'pipx reinstall ol' == latest['update_command']
 
 @patch('ol.version.git.Repo')
 def test_local_repository_check(mock_repo, version_manager):
