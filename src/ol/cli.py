@@ -261,6 +261,16 @@ Remote Usage Examples:
         formatter_class=argparse.RawDescriptionHelpFormatter
     )
     
+    # Version management arguments
+    version_group = parser.add_argument_group('Version Management')
+    version_group.add_argument('--version', action='store_true',
+                             help='Show current version information')
+    version_group.add_argument('--check-updates', action='store_true',
+                             help='Check for available updates')
+    version_group.add_argument('--update', action='store_true',
+                             help='Update to the latest version')
+    
+    # Existing arguments
     parser.add_argument('-l', '--list', action='store_true', 
                        help='List available models (works with both local and remote instances)')
     parser.add_argument('-m', '--model', 
@@ -274,6 +284,42 @@ Remote Usage Examples:
 
     args = parser.parse_args(argv)
     config = Config()
+
+    # Handle version management commands
+    if args.version or args.check_updates or args.update:
+        from .version import VersionManager
+        vm = VersionManager()
+        
+        if args.version:
+            print(vm.get_version_info())
+            return
+        
+        if args.check_updates or args.update:
+            update_available, latest_version, notes_url, update_cmd = vm.check_for_updates()
+            if update_available and latest_version and update_cmd:
+                print(vm.format_update_message(latest_version, notes_url, update_cmd))
+                if args.update:
+                    print("\nInitiating update...")
+                    try:
+                        subprocess.run(update_cmd, shell=True, check=True)
+                        print("Update completed successfully!")
+                    except subprocess.CalledProcessError as e:
+                        print(f"Error during update: {e}", file=sys.stderr)
+                        sys.exit(1)
+            else:
+                print("You are using the latest version.")
+            return
+
+    # Check for updates on normal command execution (if enabled)
+    try:
+        from .version import VersionManager
+        vm = VersionManager()
+        update_available, latest_version, notes_url, update_cmd = vm.check_for_updates()
+        if update_available and latest_version and update_cmd:
+            print(vm.format_update_message(latest_version, notes_url, update_cmd))
+            print()  # Add a blank line before continuing
+    except Exception:
+        pass  # Silently ignore any version check errors
 
     if args.list:
         if args.debug:

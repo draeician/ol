@@ -1,11 +1,34 @@
 # Ollama REPL Wrapper (ol)
 
-A Python command-line utility that wraps the Ollama REPL, providing enhanced functionality and configuration options.
+A Python command-line utility that wraps the Ollama REPL, providing enhanced functionality and configuration options for both local and remote Ollama instances.
 
-## Current Features
+## Usage
+
+```bash
+# Local Usage
+ol [options] "PROMPT" [FILES...]
+
+# Remote Usage
+OLLAMA_HOST=http://server:11434 ol [options] "PROMPT" [FILES...]
+```
+
+## Arguments
+- `-l, --list`     : List models (works with both local and remote instances)
+- `-m MODEL`       : Model to use for this REPL (default: from config)
+- `-d, --debug`    : Show debug information and equivalent shell commands
+- `"PROMPT"`       : The prompt to be used in the REPL instance (optional if files provided)
+- `FILES`          : File(s) to be injected into the prompt
+                    For remote vision models, absolute paths are required
+
+## Environment Variables
+- `OLLAMA_HOST`    : URL of remote Ollama instance (e.g., http://server:11434)
+                    Leave unset for local instance
+
+## Features
 
 ### Core Functionality
 - Command-line interface to Ollama
+- Support for both local and remote Ollama instances
 - File content injection into prompts
 - Model selection and management
 - Debug output option
@@ -36,6 +59,17 @@ A Python command-line utility that wraps the Ollama REPL, providing enhanced fun
   - JSON (.json)
   - YAML (.yaml)
   - Images (.jpg, .png, .gif)
+- Special handling for remote vision models
+
+## Installation
+
+```bash
+# Using pipx (recommended)
+pipx install .
+
+# Using pip
+pip install .
+```
 
 ## Planned Enhancements
 
