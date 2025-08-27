@@ -66,9 +66,12 @@ OLLAMA_HOST=http://server:11434 ol [options] "PROMPT" [FILES...]
 ```bash
 # Using pipx (recommended)
 pipx install .
+or from the git repo directly
+pipx install git+https://github.com/draeician/ol
+
 
 # Using pip
-pip install .
+pip install . or pipx uninstall ol
 ```
 
 ## Planned Enhancements
