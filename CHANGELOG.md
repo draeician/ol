@@ -5,6 +5,19 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.1.12] - 2024-12-19
+
+### Added
+- Completed TODO item: models listing functionality fully integrated into ol command
+
+### Changed
+- Models listing now available via `-l` or `--list` flag in main ol command
+- Update functionality integrated into main ol command with `--update` and `--check-updates` flags
+
+### Removed
+- Removed unused modeltest.py file
+- Removed completed TODO item from TODO file
+
 ## [0.1.11] - 2024-03-12
 
 ### Changed

@@ -1,0 +1,6 @@
+# TODO items completed:
+# - merge the models listing into either the ol command or the ollama-update, I'm thinking the ol command
+#   ✓ COMPLETED: Models listing now available via -l/--list flag in main ol command
+#   ✓ COMPLETED: Update functionality integrated into main ol command
+
+# New TODO items can be added here:

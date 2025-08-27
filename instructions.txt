@@ -1,0 +1,3 @@
+CHeck with the remote repo, and repo back how far off we are from that with the local repo. Do not do anything but report back.
+---
+Okay.. if that's the case then update the version number and commit the changes to the repo. If the modeltest.py isn't needed anymore you can remove it.

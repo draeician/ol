@@ -1,6 +1,6 @@
 Project Status Summary:
 
-Current Version: 0.1.6 (Stable)
+Current Version: 0.1.12 (Stable)
 
 Key Milestones:
 - Initial project setup and structure completed
@@ -12,12 +12,14 @@ Key Milestones:
 - Fixed missing imports
 - Confirmed stable with comprehensive testing
 - Version update detection working correctly with pipx
+- TODO item completed: models listing functionality fully integrated into ol command
 
 Recent Changes:
-- Fixed version update detection for pipx installations
-- Improved version comparison handling
-- Updated update command to use pipx reinstall
-- Updated version to 0.1.6
+- Completed TODO item: models listing functionality integrated into main ol command
+- Models listing available via -l/--list flag
+- Update functionality integrated into main ol command with --update and --check-updates flags
+- Removed unused modeltest.py file
+- Updated version to 0.1.12
 - All tests passing (30/30)
 - Verified stability with manual testing:
   * Version display
