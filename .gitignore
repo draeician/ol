@@ -38,3 +38,6 @@ Thumbs.db
 
 # Ollama specific
 .config/ol/cache/
+
+.cursorindexingignore
+.specstory/
