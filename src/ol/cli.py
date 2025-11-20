@@ -2,13 +2,17 @@
 
 import argparse
 import base64
+import json
 import os
 import subprocess
 import sys
 import shlex
 import textwrap
+import socket
+from datetime import datetime
 from pathlib import Path
 from typing import List, Optional, Sequence, Dict
+from urllib.parse import urlparse
 from .config import Config
 
 def get_env() -> Dict[str, str]:
@@ -20,6 +24,76 @@ def get_env() -> Dict[str, str]:
         # Add http:// prefix if not present
         env['OLLAMA_HOST'] = f"http://{env['OLLAMA_HOST']}"
     return env
+
+def get_hostname_for_filename() -> str:
+    """
+    Get the hostname to use in filenames.
+    
+    Extracts hostname from OLLAMA_HOST if set, otherwise uses local hostname.
+    
+    Returns:
+        str: Hostname to use in filename
+    """
+    env = get_env()
+    if 'OLLAMA_HOST' in env:
+        try:
+            # Parse the URL to extract hostname
+            parsed = urlparse(env['OLLAMA_HOST'])
+            hostname = parsed.hostname
+            if hostname:
+                return hostname
+        except Exception:
+            # If parsing fails, fall back to local hostname
+            pass
+    # Fall back to local hostname
+    return socket.gethostname()
+
+def list_installed_models(env: Dict[str, str], debug: bool = False) -> List[str]:
+    """
+    Return a list of model names installed on the pointed Ollama host.
+    
+    Prefer JSON if available; otherwise parse tabular output.
+    
+    Args:
+        env: Environment variables dict (from get_env())
+        debug: Whether to show debug information
+    
+    Returns:
+        List of model names
+    """
+    # Try JSON first (newer Ollama)
+    try:
+        r = subprocess.run(
+            ['ollama', 'list', '--json'],
+            env=env, capture_output=True, text=True, check=True
+        )
+        items = json.loads(r.stdout)
+        # Accept either {"models":[{"name":...}, ...]} or a flat list of {"name":...}
+        if isinstance(items, dict) and 'models' in items:
+            items = items['models']
+        names = [it['name'] for it in items if 'name' in it]
+        if names:
+            if debug:
+                print(f"DEBUG: Found {len(names)} models via JSON", file=sys.stderr)
+            return names
+    except Exception as e:
+        if debug:
+            print(f"DEBUG: JSON parsing failed: {e}, falling back to text parsing", file=sys.stderr)
+        pass
+    
+    # Fallback: parse plain text table (header "NAME  ID  SIZE  MODIFIED")
+    r = subprocess.run(
+        ['ollama', 'list'],
+        env=env, capture_output=True, text=True, check=True
+    )
+    lines = [ln.strip() for ln in r.stdout.splitlines() if ln.strip()]
+    # Drop header if present
+    if lines and lines[0].lower().startswith('name'):
+        lines = lines[1:]
+    names = [ln.split()[0] for ln in lines if ln and not ln.lower().startswith('name')]
+    if debug:
+        print(f"DEBUG: Found {len(names)} models via text parsing", file=sys.stderr)
+    return names
 
 def list_models() -> None:
     """List all available Ollama models."""
@@ -119,6 +193,155 @@ def format_vision_prompt(prompt: str, image_data: str) -> str:
         str: Formatted prompt with image data
     """
     return f'{{"prompt": "{prompt}", "images": ["{image_data}"]}}'
+
+def sanitize_model_name(model: str) -> str:
+    """
+    Sanitize a model name for use in filenames.
+    
+    Replaces path-hostile characters with safe alternatives.
+    
+    Args:
+        model: The model name to sanitize
+    
+    Returns:
+        Sanitized model name safe for filesystem use
+    """
+    # Replace path separators and other problematic characters
+    safe = model.replace(':', '_')
+    safe = safe.replace('/', '_')
+    safe = safe.replace('\\', '_')
+    safe = safe.replace(' ', '_')
+    # Remove or replace other potentially problematic characters
+    safe = safe.replace('|', '_')
+    safe = safe.replace('<', '_')
+    safe = safe.replace('>', '_')
+    safe = safe.replace('"', '_')
+    safe = safe.replace('*', '_')
+    safe = safe.replace('?', '_')
+    # Remove leading/trailing dots and spaces
+    safe = safe.strip('. ')
+    # Collapse multiple underscores
+    while '__' in safe:
+        safe = safe.replace('__', '_')
+    return safe
+
+def save_all_modelfiles(out_dir: Optional[str] = None, debug: bool = False) -> List[Path]:
+    """
+    Download and save Modelfiles for all installed models.
+    
+    Args:
+        out_dir: Output directory (default: current working directory)
+        debug: Whether to show debug information
+    
+    Returns:
+        List of Paths to saved Modelfiles
+    
+    Raises:
+        SystemExit: If model enumeration fails or any save fails
+    """
+    env = get_env()
+    try:
+        models = list_installed_models(env, debug)
+        if not models:
+            print("No models found on the Ollama host", file=sys.stderr)
+            sys.exit(1)
+        
+        if debug:
+            print(f"Found {len(models)} models to save", file=sys.stderr)
+        
+        saved_paths = []
+        failed_models = []
+        for model in models:
+            try:
+                path = save_modelfile(model, out_dir, debug)
+                saved_paths.append(path)
+            except (SystemExit, FileNotFoundError, OSError) as e:
+                # If one model fails, continue with others but note the error
+                error_msg = str(e) if hasattr(e, '__str__') else type(e).__name__
+                print(f"Warning: Failed to save Modelfile for {model}: {error_msg}", file=sys.stderr)
+                failed_models.append(model)
+                continue
+        
+        if failed_models and not debug:
+            print(f"Note: {len(failed_models)} model(s) failed to save. Use -d for details.", file=sys.stderr)
+        
+        return saved_paths
+    except subprocess.CalledProcessError as e:
+        error_msg = f"Error listing models (returncode {e.returncode})"
+        if e.stderr:
+            error_msg += f": {e.stderr.strip()}"
+        print(error_msg, file=sys.stderr)
+        sys.exit(1)
+
+def save_modelfile(model: str, out_dir: Optional[str] = None, debug: bool = False) -> Path:
+    """
+    Download and save a model's Modelfile.
+    
+    Args:
+        model: The model name (required)
+        out_dir: Output directory (default: current working directory)
+        debug: Whether to show debug information
+    
+    Returns:
+        Path: The absolute path to the saved Modelfile
+    
+    Raises:
+        SystemExit: If model is missing or subprocess fails
+    """
+    if not model:
+        print("Error: --model is required when using --save-modelfile", file=sys.stderr)
+        sys.exit(1)
+    
+    try:
+        # Call ollama show --modelfile
+        result = subprocess.run(
+            ['ollama', 'show', '--modelfile', model],
+            capture_output=True,
+            text=True,
+            env=get_env(),
+            check=True
+        )
+        
+        # Build safe filename
+        safe_model = sanitize_model_name(model)
+        hostname = get_hostname_for_filename()
+        timestamp = datetime.now().strftime('%Y%m%d-%H%M%S')
+        filename = f"{safe_model}-{hostname}-{timestamp}.modelfile"
+        
+        # Determine output directory
+        if out_dir:
+            output_path = Path(out_dir).expanduser().resolve()
+        else:
+            output_path = Path.cwd()
+        
+        # Create directory if needed
+        output_path.mkdir(parents=True, exist_ok=True)
+        
+        # Write file
+        file_path = output_path / filename
+        try:
+            with open(file_path, 'w', encoding='utf-8') as f:
+                f.write(result.stdout)
+        except (FileNotFoundError, OSError) as e:
+            error_msg = f"Error writing Modelfile for {model}: {e}"
+            print(error_msg, file=sys.stderr)
+            sys.exit(1)
+        
+        # Print absolute path
+        abs_path = file_path.resolve()
+        print(str(abs_path))
+        
+        if debug:
+            print(f"Saved Modelfile to {abs_path}", file=sys.stderr)
+        
+        return abs_path
+        
+    except subprocess.CalledProcessError as e:
+        error_msg = f"Error fetching Modelfile (returncode {e.returncode})"
+        if e.stderr:
+            error_msg += f": {e.stderr.strip()}"
+        print(error_msg, file=sys.stderr)
+        sys.exit(1)
 
 def run_ollama(prompt: str, model: str = None, files: Optional[List[str]] = None, debug: bool = False) -> None:
     """
@@ -249,6 +472,7 @@ def main(argv: Optional[Sequence[str]] = None) -> None:
     parser = argparse.ArgumentParser(
         description='Ollama REPL wrapper',
         formatter_class=argparse.RawDescriptionHelpFormatter,
+        add_help=False,  # Disable default -h help to use -h for host
         epilog=textwrap.dedent('''
             Examples:
               ol "Explain this code" main.py
@@ -257,8 +481,14 @@ def main(argv: Optional[Sequence[str]] = None) -> None:
               
               # With remote Ollama instance:
               OLLAMA_HOST=http://server:11434 ol "Your prompt" file.txt
+              ol -h server -p 11434 -m llama3.2 "Your prompt" file.txt
+              ol -h localhost -p 11435 "Hello"
         ''')
     )
+    
+    # Add help flags manually
+    parser.add_argument('--help', '-?', action='help',
+                       help='Show this help message and exit')
 
     # Version management arguments
     parser.add_argument('--version', action='store_true',
@@ -275,12 +505,31 @@ def main(argv: Optional[Sequence[str]] = None) -> None:
                        help='Model to use (default: from config). Vision models need absolute paths for remote.')
     parser.add_argument('-d', '--debug', action='store_true',
                        help='Show debug information including equivalent shell commands')
+    parser.add_argument('--save-modelfile', action='store_true',
+                       help='Download and save the Modelfile for the specified model')
+    parser.add_argument('-a', '--all', action='store_true',
+                       help='Save Modelfiles for all models (requires --save-modelfile)')
+    parser.add_argument('--output-dir', 
+                       help='Output directory for saved Modelfile (default: current working directory)')
+    parser.add_argument('-h', '--host', default=None,
+                       help='Ollama host (default: localhost)')
+    parser.add_argument('-p', '--port', type=int, default=None,
+                       help='Ollama port (default: 11434)')
     parser.add_argument('prompt', nargs='?', default=None,
                        help='Prompt to send to Ollama (optional if files are provided)')
     parser.add_argument('files', nargs='*',
                        help='Files to inject into the prompt. For remote vision models, use absolute paths.')
 
     args = parser.parse_args(argv)
+
+    # Normalize and set OLLAMA_HOST if host or port flags are provided
+    if args.host is not None or args.port is not None:
+        host = args.host if args.host is not None else 'localhost'
+        port = args.port if args.port is not None else 11434
+        value = f'{host}:{port}'
+        if not value.startswith('http://') and not value.startswith('https://'):
+            value = f'http://{value}'
+        os.environ['OLLAMA_HOST'] = value
 
     # Initialize config with debug flag
     config = Config(debug=args.debug)
@@ -318,6 +567,21 @@ def main(argv: Optional[Sequence[str]] = None) -> None:
             print(format_shell_command(['ollama', 'list'], 
                   env_vars={'OLLAMA_HOST': env['OLLAMA_HOST']} if 'OLLAMA_HOST' in env else None))
         list_models()
+        return
+
+    # Validate --all requires --save-modelfile
+    if args.all and not args.save_modelfile:
+        print("Error: --all requires --save-modelfile", file=sys.stderr)
+        sys.exit(1)
+
+    if args.save_modelfile:
+        if args.all:
+            save_all_modelfiles(args.output_dir, args.debug)
+        else:
+            if not args.model:
+                print("Error: --model is required when using --save-modelfile (or use --all to save all models)", file=sys.stderr)
+                sys.exit(1)
+            save_modelfile(args.model, args.output_dir, args.debug)
         return
 
     # Check if the first positional argument is a file

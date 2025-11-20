@@ -1,3 +1,13 @@
 CHeck with the remote repo, and repo back how far off we are from that with the local repo. Do not do anything but report back.
 ---
 Okay.. if that's the case then update the version number and commit the changes to the repo. If the modeltest.py isn't needed anymore you can remove it.
+---
+We will be adding a Implement a CLI switch to download and save a model's Modelfile.
+---
+Extend the "save Modelfile" feature to support saving for ALL models via -a/--all.
+---
+Fixed FileNotFoundError when saving Modelfiles for models with path-hostile characters (slashes, etc.) in their names. Added filename sanitization and improved error handling.
+---
+Add CLI flags to set the Ollama host/port, without breaking -h help. New flags: -H/--host (default "localhost") and -p/--port (default 11434). These override OLLAMA_HOST for the current command. Keep -h for help. Do NOT use -h for host.
+---
+Change -h from help to -host and make help --help -?

@@ -1,11 +1,11 @@
 Project Status Summary:
 
-Current Version: 0.1.12 (Stable)
+Current Version: 0.1.15 (Stable)
 
 Key Milestones:
 - Initial project setup and structure completed
 - Basic functionality implemented and tested
-- All 30 tests passing successfully
+- All tests passing successfully
 - Version flag functionality fixed and working
 - Package properly installable via pip
 - Debug output now properly controlled by -d flag
@@ -13,21 +13,28 @@ Key Milestones:
 - Confirmed stable with comprehensive testing
 - Version update detection working correctly with pipx
 - TODO item completed: models listing functionality fully integrated into ol command
+- Added Modelfile download and save functionality
 
 Recent Changes:
-- Completed TODO item: models listing functionality integrated into main ol command
-- Models listing available via -l/--list flag
-- Update functionality integrated into main ol command with --update and --check-updates flags
-- Removed unused modeltest.py file
-- Updated version to 0.1.12
-- All tests passing (30/30)
-- Verified stability with manual testing:
-  * Version display
-  * Model listing
-  * Debug output
-  * Basic prompts
-  * Remote server connection
-  * Update detection
+- Added --save-modelfile flag to download and save model Modelfiles
+- Added -a/--all flag to save Modelfiles for all installed models
+- Added --output-dir option for custom output directory
+- Implemented save_modelfile() and save_all_modelfiles() functions with proper error handling
+- Implemented list_installed_models() helper with JSON and text parsing fallback
+- Implemented sanitize_model_name() to handle path-hostile characters in model names
+- Filename pattern: <modelname>-<hostname>-<YYYYMMDD-HHMMSS>.modelfile
+- Path-hostile characters (/, \, :, spaces, etc.) replaced with underscores in filenames
+- Support for remote Modelfile downloads via OLLAMA_HOST
+- Improved error handling: continues processing remaining models when one fails
+- Fixed FileNotFoundError for models with slashes in names
+- Added comprehensive test suite for save_modelfile and --all functionality
+- Updated version to 0.1.13
+- Updated documentation with usage examples
+- Added -H/--host and -p/--port CLI flags to override OLLAMA_HOST for the current command
+- Implemented host/port normalization and environment variable setting
+- Added comprehensive tests for host/port override functionality
+- Updated version to 0.1.15
+- Updated documentation with host/port usage examples
 
 Next Steps:
 - Continue monitoring for any bug reports

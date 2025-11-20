@@ -5,6 +5,37 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.1.15] - 2025-11-19
+
+### Added
+- Host/port selection via `-h/--host` and `-p/--port` overriding `OLLAMA_HOST` for the current command
+- CLI flags allow setting Ollama host and port without using environment variables
+- Support for local custom port usage: `ol -h localhost -p 11435 "Hello"`
+- Support for remote host/port: `ol -h api.myhost.com -p 11434 -m codellama "Review this" file.py`
+- Help flag changed to `--help` and `-?` (was `-h`)
+
+### Changed
+- Changed host flag from `-H` to `-h` to match common CLI conventions
+- Changed help flag from `-h` to `--help` and `-?` to avoid conflict with host flag
+
+### Fixed
+- Fixed Modelfile filename to use hostname from `OLLAMA_HOST` (or `-h` flag) instead of local machine hostname when saving Modelfiles from remote instances
+
+## [0.1.13] - 2024-12-20
+
+### Added
+- `--save-modelfile` flag to download and save a model's Modelfile to disk
+- `-a, --all` flag to save Modelfiles for all installed models (requires --save-modelfile)
+- `--output-dir` option to specify custom output directory for saved Modelfiles
+- Support for remote Modelfile downloads via OLLAMA_HOST environment variable
+- `list_installed_models()` helper function with JSON and text parsing fallback
+- `sanitize_model_name()` function to safely handle model names with path-hostile characters
+- Modelfile naming pattern: `<modelname>-<hostname>-<timestamp>.modelfile` (path-hostile characters replaced with underscores)
+
+### Fixed
+- Fixed `FileNotFoundError` when saving Modelfiles for models with slashes or other path-hostile characters in their names
+- Improved error handling in `save_all_modelfiles()` to continue processing remaining models when one fails
+
 ## [0.1.12] - 2024-12-19
 
 ### Added
