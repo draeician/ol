@@ -179,7 +179,7 @@ I’m keeping **version bump + CHANGELOG** edits isolated to the **release branc
 
 ---
 
-### Branch 7 — `refactor/init-from-cli`
+### Branch 7 — `refactor/init-from-cli` ✅ COMPLETED
 
 **Goal:** remove side effects on import; initialize on CLI execution path.
 
