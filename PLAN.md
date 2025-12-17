@@ -198,7 +198,7 @@ I’m keeping **version bump + CHANGELOG** edits isolated to the **release branc
 
 ---
 
-### Branch 8 — `fix/update-no-shell`
+### Branch 8 — `fix/update-no-shell` ✅ COMPLETED
 
 **Goal:** remove shell execution in update path (security).
 
