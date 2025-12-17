@@ -1,6 +1,6 @@
 Project Status Summary:
 
-Current Version: 0.1.18 (Stable)
+Current Version: 0.1.19 (Stable)
 
 Key Milestones:
 - Initial project setup and structure completed
@@ -58,6 +58,7 @@ Recent Changes:
 - Added assertions for endpoint URL (OLLAMA_HOST usage), temperature parameter, images field behavior, and streaming output
 - Kept subprocess tests for `ollama list` and `ollama show --modelfile` operations
 - Tests now provide authentic validation of the HTTP API execution path
+- Updated version to 0.1.19: packaging metadata corrections, repository hygiene improvements, and HTTP API test suite refactoring
 
 Next Steps:
 - Continue monitoring for any bug reports
