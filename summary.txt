@@ -93,6 +93,15 @@ Recent Changes:
 - Prevents shell injection vulnerabilities
 - Added comprehensive tests for update command execution
 - Tests verify argument list usage and error handling
+- Updated version to 0.1.24: security fix for update command
+- Branch 9 (feat/stdin-input-support): Add STDIN input support for piping and redirection
+- Added STDIN detection using sys.stdin.isatty() to check if input is available
+- Reads from STDIN when not a TTY (piping/redirection scenarios)
+- STDIN input used as prompt when no prompt argument provided
+- STDIN input combined with prompt argument when both provided
+- Handles multiline input and removes trailing newlines
+- Added comprehensive tests for STDIN input support
+- Updated version to 0.1.25: STDIN input support
 
 Next Steps:
 - Continue monitoring for any bug reports
