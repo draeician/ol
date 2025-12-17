@@ -1,9 +1,21 @@
 import pytest
 import os
+import json
 import subprocess
+import base64
 from pathlib import Path
 from unittest.mock import patch, MagicMock
 from ol.cli import main, get_env, is_image_file, get_file_type_and_prompt, format_shell_command, save_modelfile, save_all_modelfiles, list_installed_models, sanitize_model_name
+
+def create_mock_streaming_response(response_text, done=True):
+    """Helper to create a mock streaming response with line-delimited JSON."""
+    lines = [
+        json.dumps({"response": chunk, "done": False})
+        for chunk in response_text
+    ]
+    if done:
+        lines.append(json.dumps({"response": "", "done": True}))
+    return iter([line.encode('utf-8') for line in lines])
 
 def test_help(capsys):
     """Test that help output works."""
@@ -13,25 +25,62 @@ def test_help(capsys):
     assert 'Ollama REPL wrapper' in captured.out
 
 def test_list_models(mocker):
-    """Test that list models works."""
+    """Test that list models works (still uses subprocess)."""
     mock_run = mocker.patch('subprocess.run')
     main(['-l'])
     mock_run.assert_called_once_with(['ollama', 'list'], env=mocker.ANY, check=True)
 
-def test_run_with_model(mocker):
-    """Test running with a specific model."""
-    mock_run = mocker.patch('subprocess.run')
+def test_run_with_model(mocker, capsys):
+    """Test running with a specific model via HTTP API."""
+    mock_response = MagicMock()
+    mock_response.iter_lines.return_value = create_mock_streaming_response("Hello", done=True)
+    mock_response.raise_for_status = MagicMock()
+    
+    mock_post = mocker.patch('requests.post', return_value=mock_response)
+    
     main(['-m', 'codellama', 'test prompt'])
-    mock_run.assert_called_once_with(
-        ['ollama', 'run', 'codellama'],
-        input=b'test prompt',
-        env=mocker.ANY,
-        check=True
-    )
+    
+    # Verify requests.post was called
+    assert mock_post.called
+    call_args = mock_post.call_args
+    
+    # Verify endpoint URL
+    assert call_args[0][0] == 'http://localhost:11434/api/generate'
+    
+    # Verify payload
+    payload = call_args[1]['json']
+    assert payload['model'] == 'codellama'
+    assert payload['prompt'] == 'test prompt'
+    assert payload['temperature'] == 0.7  # default temperature
+    assert payload['stream'] is True
+    assert 'images' not in payload
+    
+    # Verify output was printed
+    captured = capsys.readouterr()
+    assert 'Hello' in captured.out
+
+def test_run_with_temperature(mocker, capsys):
+    """Test running with custom temperature via HTTP API."""
+    mock_response = MagicMock()
+    mock_response.iter_lines.return_value = create_mock_streaming_response("Response", done=True)
+    mock_response.raise_for_status = MagicMock()
+    
+    mock_post = mocker.patch('requests.post', return_value=mock_response)
+    
+    main(['-m', 'llama3.2', '--temperature', '0.9', 'test prompt'])
+    
+    call_args = mock_post.call_args
+    payload = call_args[1]['json']
+    assert payload['temperature'] == 0.9
 
 def test_debug_output(mocker, capsys, tmp_path):
-    """Test debug output with file processing."""
-    mock_run = mocker.patch('subprocess.run')
+    """Test debug output with file processing via HTTP API."""
+    mock_response = MagicMock()
+    mock_response.iter_lines.return_value = create_mock_streaming_response("Response", done=True)
+    mock_response.raise_for_status = MagicMock()
+    
+    mock_post = mocker.patch('requests.post', return_value=mock_response)
+    
     test_file = tmp_path / "test.txt"
     test_file.write_text("Test content")
     
@@ -44,24 +93,28 @@ def test_debug_output(mocker, capsys, tmp_path):
     assert "Model: llama3.2" in debug_output
     assert "Base Prompt: test prompt" in debug_output
     assert "Added content from" in debug_output
-    assert "=== Command Information ===" in debug_output
+    assert "=== API Request ===" in debug_output
     
-    mock_run.assert_called_once_with(
-        ['ollama', 'run', 'llama3.2'],
-        input=mocker.ANY,
-        env=mocker.ANY,
-        check=True
-    )
+    # Verify API was called
+    assert mock_post.called
+    call_args = mock_post.call_args
+    payload = call_args[1]['json']
+    assert 'test prompt' in payload['prompt']
+    assert 'Test content' in payload['prompt']
 
 # Error Handling Tests
-def test_ollama_command_failure(mocker):
-    """Test behavior when Ollama command fails."""
-    mock_run = mocker.patch('subprocess.run')
-    mock_run.side_effect = subprocess.CalledProcessError(1, ['ollama'])
+def test_ollama_api_failure(mocker, capsys):
+    """Test behavior when Ollama API call fails."""
+    import requests
+    mock_post = mocker.patch('requests.post')
+    mock_post.side_effect = requests.exceptions.RequestException("Connection error")
     
     with pytest.raises(SystemExit) as exc_info:
         main(['-m', 'invalid_model', 'test'])
     assert exc_info.value.code == 1
+    
+    captured = capsys.readouterr()
+    assert 'Error calling Ollama API' in captured.err
 
 def test_file_not_found(tmp_path):
     """Test behavior when file is not found."""
@@ -83,64 +136,108 @@ def test_file_not_readable(tmp_path):
     test_file.chmod(0o644)  # Restore permissions for cleanup
 
 # Configuration Tests
-def test_model_selection_for_file_types(mocker, tmp_path):
-    """Test model selection logic for different file types."""
-    mock_run = mocker.patch('subprocess.run')
+def test_model_selection_for_file_types(mocker, tmp_path, capsys):
+    """Test model selection logic for different file types via HTTP API."""
+    mock_response = MagicMock()
+    mock_response.iter_lines.return_value = create_mock_streaming_response("Response", done=True)
+    mock_response.raise_for_status = MagicMock()
+    
+    mock_post = mocker.patch('requests.post', return_value=mock_response)
     
     # Test text file
     text_file = tmp_path / "test.txt"
     text_file.write_text("content")
     main(['-m', 'llama2', 'test', str(text_file)])
-    assert mock_run.call_args_list[0][0][0] == ['ollama', 'run', 'llama2']
+    
+    # Verify API was called with text model
+    assert mock_post.called
+    call_args = mock_post.call_args
+    payload = call_args[1]['json']
+    assert payload['model'] == 'llama2'
+    assert 'images' not in payload
     
     # Test image file
     image_file = tmp_path / "test.jpg"
     image_file.write_bytes(b'fake_image_data')
+    mock_post.reset_mock()
+    
     main(['-m', 'llava', 'test', str(image_file)])
     
-    # Verify ollama was called with the image file path
-    assert mock_run.call_args_list[1][0][0] == ['ollama', 'run', 'llava', 'test', str(image_file)]
+    # Verify API was called with image
+    assert mock_post.called
+    call_args = mock_post.call_args
+    payload = call_args[1]['json']
+    assert payload['model'] == 'llava'
+    assert 'images' in payload
+    assert len(payload['images']) == 1
+    # Verify image is base64 encoded
+    assert isinstance(payload['images'][0], str)
+    assert len(payload['images'][0]) > 0
 
-def test_default_prompts(mocker, tmp_path):
-    """Test default prompt selection for different file types."""
+def test_default_prompts(mocker, tmp_path, capsys):
+    """Test default prompt selection for different file types via HTTP API."""
     config = MagicMock()
     config.get_model_for_type.return_value = "llama2"
+    config.get_temperature_for_type.return_value = 0.7
     mocker.patch('ol.cli.Config', return_value=config)
-    mock_run = mocker.patch('subprocess.run')
+    
+    mock_response = MagicMock()
+    mock_response.iter_lines.return_value = create_mock_streaming_response("Response", done=True)
+    mock_response.raise_for_status = MagicMock()
+    
+    mock_post = mocker.patch('requests.post', return_value=mock_response)
     
     text_file = tmp_path / "test.txt"
     text_file.write_text("content")
     main(['analyze', str(text_file)])
     
-    # Verify ollama was called with the correct input
-    assert mock_run.call_count == 1
-    call_args = mock_run.call_args
-    assert call_args[0][0] == ['ollama', 'run', 'llama2']
-    assert b'analyze' in call_args[1]['input']
-    assert b'content' in call_args[1]['input']
+    # Verify API was called
+    assert mock_post.call_count == 1
+    call_args = mock_post.call_args
+    payload = call_args[1]['json']
+    assert 'analyze' in payload['prompt']
+    assert 'content' in payload['prompt']
 
-def test_missing_config(mocker):
-    """Test behavior when config file is missing."""
+def test_missing_config(mocker, capsys):
+    """Test behavior when config file is missing via HTTP API."""
     mock_config = MagicMock()
     mock_config.get_model_for_type.return_value = "llama2"
+    mock_config.get_temperature_for_type.return_value = 0.7
     mocker.patch('ol.cli.Config', return_value=mock_config)
-    mock_run = mocker.patch('subprocess.run')
+    
+    mock_response = MagicMock()
+    mock_response.iter_lines.return_value = create_mock_streaming_response("Response", done=True)
+    mock_response.raise_for_status = MagicMock()
+    
+    mock_post = mocker.patch('requests.post', return_value=mock_response)
     
     main(['test prompt'])
     
-    mock_run.assert_called_once()
+    assert mock_post.called
 
-def test_ollama_host_handling(mocker):
-    """Test OLLAMA_HOST environment variable handling."""
-    mock_run = mocker.patch('subprocess.run')
+def test_ollama_host_handling(mocker, capsys):
+    """Test OLLAMA_HOST environment variable handling via HTTP API."""
+    mock_response = MagicMock()
+    mock_response.iter_lines.return_value = create_mock_streaming_response("Response", done=True)
+    mock_response.raise_for_status = MagicMock()
+    
+    mock_post = mocker.patch('requests.post', return_value=mock_response)
+    
     with patch.dict(os.environ, {'OLLAMA_HOST': 'http://test:11434'}):
         main(['test prompt'])
-        assert mock_run.call_args[1]['env']['OLLAMA_HOST'] == 'http://test:11434'
+        
+        # Verify endpoint URL uses OLLAMA_HOST
+        call_args = mock_post.call_args
+        assert call_args[0][0] == 'http://test:11434/api/generate'
 
 # Image Processing Tests
-def test_image_processing_local(mocker, tmp_path):
-    """Test handling of local image files."""
-    mock_run = mocker.patch('subprocess.run')
+def test_image_processing_local(mocker, tmp_path, capsys):
+    """Test handling of local image files via HTTP API."""
+    mock_response = MagicMock()
+    mock_response.iter_lines.return_value = create_mock_streaming_response("Response", done=True)
+    mock_response.raise_for_status = MagicMock()
+    
+    mock_post = mocker.patch('requests.post', return_value=mock_response)
     
     image_file = tmp_path / "test.jpg"
     image_file.write_bytes(b'fake_image_data')
@@ -149,17 +246,24 @@ def test_image_processing_local(mocker, tmp_path):
     with patch.dict(os.environ, {}, clear=True):
         main(['-m', 'llava', 'describe', str(image_file)])
     
-    # Verify ollama was called with the image file path
-    mock_run.assert_called_once_with(
-        ['ollama', 'run', 'llava', 'describe', str(image_file)],
-        env=mocker.ANY,
-        check=True
-    )
+    # Verify API was called with image
+    assert mock_post.called
+    call_args = mock_post.call_args
+    assert call_args[0][0] == 'http://localhost:11434/api/generate'
+    payload = call_args[1]['json']
+    assert 'images' in payload
+    assert len(payload['images']) == 1
+    # Verify image is base64 encoded
+    decoded = base64.b64decode(payload['images'][0])
+    assert decoded == b'fake_image_data'
 
-def test_image_processing_remote(mocker, tmp_path):
-    """Test handling of remote image files."""
-    mock_run = mocker.patch('subprocess.run')
-    mock_run.return_value.returncode = 0  # Ensure success
+def test_image_processing_remote(mocker, tmp_path, capsys):
+    """Test handling of remote image files via HTTP API."""
+    mock_response = MagicMock()
+    mock_response.iter_lines.return_value = create_mock_streaming_response("Response", done=True)
+    mock_response.raise_for_status = MagicMock()
+    
+    mock_post = mocker.patch('requests.post', return_value=mock_response)
     
     with patch.dict(os.environ, {'OLLAMA_HOST': 'http://test:11434'}):
         image_file = tmp_path / "test.jpg"
@@ -167,16 +271,20 @@ def test_image_processing_remote(mocker, tmp_path):
         
         main(['-m', 'llava', 'describe', str(image_file)])
         
-        # Verify ollama was called with the image file path
-        mock_run.assert_called_once_with(
-            ['ollama', 'run', 'llava', 'describe', str(image_file)],
-            env=mocker.ANY,
-            check=True
-        )
+        # Verify endpoint URL uses OLLAMA_HOST
+        call_args = mock_post.call_args
+        assert call_args[0][0] == 'http://test:11434/api/generate'
+        payload = call_args[1]['json']
+        assert 'images' in payload
+        assert len(payload['images']) == 1
 
-def test_mixed_content(mocker, tmp_path):
-    """Test handling of mixed content (images + text)."""
-    mock_run = mocker.patch('subprocess.run')
+def test_mixed_content(mocker, tmp_path, capsys):
+    """Test handling of mixed content (images + text) via HTTP API."""
+    mock_response = MagicMock()
+    mock_response.iter_lines.return_value = create_mock_streaming_response("Response", done=True)
+    mock_response.raise_for_status = MagicMock()
+    
+    mock_post = mocker.patch('requests.post', return_value=mock_response)
     
     text_file = tmp_path / "test.txt"
     text_file.write_text("content")
@@ -185,13 +293,22 @@ def test_mixed_content(mocker, tmp_path):
     
     main(['-m', 'llama2', 'test', str(text_file), str(image_file)])
     
-    # Should use text model for mixed content
-    assert mock_run.call_args[0][0] == ['ollama', 'run', 'llama2']
+    # Should include both text content and images
+    assert mock_post.called
+    call_args = mock_post.call_args
+    payload = call_args[1]['json']
+    assert 'content' in payload['prompt']  # Text file content in prompt
+    assert 'images' in payload  # Images in payload
+    assert len(payload['images']) == 1
 
 # Input Processing Tests
-def test_multiple_files(mocker, tmp_path):
-    """Test handling of multiple files."""
-    mock_run = mocker.patch('subprocess.run')
+def test_multiple_files(mocker, tmp_path, capsys):
+    """Test handling of multiple files via HTTP API."""
+    mock_response = MagicMock()
+    mock_response.iter_lines.return_value = create_mock_streaming_response("Response", done=True)
+    mock_response.raise_for_status = MagicMock()
+    
+    mock_post = mocker.patch('requests.post', return_value=mock_response)
     
     files = []
     for i in range(3):
@@ -201,13 +318,20 @@ def test_multiple_files(mocker, tmp_path):
     
     main(['-m', 'llama2', 'test'] + files)
     
-    # Verify all files were included in input
-    input_data = mock_run.call_args[1]['input'].decode()
-    assert all(f"content{i}" in input_data for i in range(3))
+    # Verify all files were included in prompt
+    assert mock_post.called
+    call_args = mock_post.call_args
+    payload = call_args[1]['json']
+    prompt = payload['prompt']
+    assert all(f"content{i}" in prompt for i in range(3))
 
-def test_special_characters(mocker, tmp_path):
-    """Test handling of file paths with special characters."""
-    mock_run = mocker.patch('subprocess.run')
+def test_special_characters(mocker, tmp_path, capsys):
+    """Test handling of file paths with special characters via HTTP API."""
+    mock_response = MagicMock()
+    mock_response.iter_lines.return_value = create_mock_streaming_response("Response", done=True)
+    mock_response.raise_for_status = MagicMock()
+    
+    mock_post = mocker.patch('requests.post', return_value=mock_response)
     
     file_path = tmp_path / "test with spaces!@#$.txt"
     file_path.write_text("content")
@@ -215,38 +339,60 @@ def test_special_characters(mocker, tmp_path):
     main(['-m', 'llama2', 'test', str(file_path)])
     
     # Verify the file was processed correctly
-    assert mock_run.called
-    assert b'content' in mock_run.call_args[1]['input']
+    assert mock_post.called
+    call_args = mock_post.call_args
+    payload = call_args[1]['json']
+    assert 'content' in payload['prompt']
 
-def test_path_handling(mocker, tmp_path):
-    """Test handling of relative vs absolute paths."""
-    mock_run = mocker.patch('subprocess.run')
+def test_path_handling(mocker, tmp_path, capsys):
+    """Test handling of relative vs absolute paths via HTTP API."""
+    mock_response = MagicMock()
+    mock_response.iter_lines.return_value = create_mock_streaming_response("Response", done=True)
+    mock_response.raise_for_status = MagicMock()
+    
+    mock_post = mocker.patch('requests.post', return_value=mock_response)
     
     # Test absolute path
     abs_file = tmp_path / "abs_test.txt"
     abs_file.write_text("abs content")
     main(['-m', 'llama2', 'test', str(abs_file)])
-    assert b'abs content' in mock_run.call_args[1]['input']
+    assert mock_post.called
+    call_args = mock_post.call_args
+    payload = call_args[1]['json']
+    assert 'abs content' in payload['prompt']
     
     # Test relative path
+    mock_post.reset_mock()
     with patch('os.getcwd', return_value=str(tmp_path)):
         rel_file = Path("rel_test.txt")
         (tmp_path / rel_file).write_text("rel content")
         main(['-m', 'llama2', 'test', str(rel_file)])
-        assert b'rel content' in mock_run.call_args[1]['input']
+        assert mock_post.called
+        call_args = mock_post.call_args
+        payload = call_args[1]['json']
+        assert 'rel content' in payload['prompt']
 
 # Remote Server Tests
-def test_remote_connection(mocker):
-    """Test connection to remote Ollama server."""
-    mock_run = mocker.patch('subprocess.run')
+def test_remote_connection(mocker, capsys):
+    """Test connection to remote Ollama server via HTTP API."""
+    mock_response = MagicMock()
+    mock_response.iter_lines.return_value = create_mock_streaming_response("Response", done=True)
+    mock_response.raise_for_status = MagicMock()
+    
+    mock_post = mocker.patch('requests.post', return_value=mock_response)
+    
     with patch.dict(os.environ, {'OLLAMA_HOST': 'http://test:11434'}):
         main(['test prompt'])
-        assert mock_run.call_args[1]['env']['OLLAMA_HOST'] == 'http://test:11434'
+        
+        # Verify endpoint URL uses OLLAMA_HOST
+        call_args = mock_post.call_args
+        assert call_args[0][0] == 'http://test:11434/api/generate'
 
-def test_remote_connection_error(mocker):
-    """Test error handling for connection issues."""
-    mock_run = mocker.patch('subprocess.run')
-    mock_run.side_effect = subprocess.CalledProcessError(1, ['ollama'])
+def test_remote_connection_error(mocker, capsys):
+    """Test error handling for connection issues via HTTP API."""
+    import requests
+    mock_post = mocker.patch('requests.post')
+    mock_post.side_effect = requests.exceptions.RequestException("Connection error")
     
     with patch.dict(os.environ, {'OLLAMA_HOST': 'http://invalid:11434'}):
         with pytest.raises(SystemExit) as exc_info:
@@ -291,8 +437,62 @@ def test_version_flag(capsys):
     assert 'ol version' in captured.out
     assert 'github.com' in captured.out
 
+def test_streaming_output(mocker, capsys):
+    """Test that streaming output is emitted correctly via HTTP API."""
+    # Create a response with multiple chunks
+    chunks = ["Hello", " ", "world", "!"]
+    mock_response = MagicMock()
+    mock_response.iter_lines.return_value = create_mock_streaming_response(chunks, done=True)
+    mock_response.raise_for_status = MagicMock()
+    
+    mock_post = mocker.patch('requests.post', return_value=mock_response)
+    
+    main(['-m', 'llama3.2', 'test'])
+    
+    # Verify output was streamed
+    captured = capsys.readouterr()
+    assert 'Hello world!' in captured.out
+    
+    # Verify API was called with stream=True
+    call_args = mock_post.call_args
+    assert call_args[1]['json']['stream'] is True
+
+def test_no_images_in_text_only_request(mocker, capsys):
+    """Test that images field is not included in text-only requests."""
+    mock_response = MagicMock()
+    mock_response.iter_lines.return_value = create_mock_streaming_response("Response", done=True)
+    mock_response.raise_for_status = MagicMock()
+    
+    mock_post = mocker.patch('requests.post', return_value=mock_response)
+    
+    main(['-m', 'llama3.2', 'test prompt'])
+    
+    call_args = mock_post.call_args
+    payload = call_args[1]['json']
+    assert 'images' not in payload
+
+def test_images_in_vision_request(mocker, tmp_path, capsys):
+    """Test that images field is included in vision requests."""
+    mock_response = MagicMock()
+    mock_response.iter_lines.return_value = create_mock_streaming_response("Response", done=True)
+    mock_response.raise_for_status = MagicMock()
+    
+    mock_post = mocker.patch('requests.post', return_value=mock_response)
+    
+    image_file = tmp_path / "test.jpg"
+    image_file.write_bytes(b'fake_image_data')
+    
+    main(['-m', 'llava', 'describe', str(image_file)])
+    
+    call_args = mock_post.call_args
+    payload = call_args[1]['json']
+    assert 'images' in payload
+    assert len(payload['images']) == 1
+    assert isinstance(payload['images'][0], str)  # base64 encoded string
+
+# Keep subprocess tests for ollama list and ollama show --modelfile
 def test_save_modelfile_success(mocker, tmp_path, monkeypatch):
-    """Test successful Modelfile save."""
+    """Test successful Modelfile save (still uses subprocess)."""
     # Mock subprocess.run
     mock_result = MagicMock()
     mock_result.stdout = "FROM llama3.2\nPARAMETER temperature 0.7"
@@ -546,7 +746,7 @@ def test_all_flag_without_save_modelfile(capsys):
     assert '--all requires --save-modelfile' in captured.err
 
 def test_list_installed_models_json(mocker):
-    """Test list_installed_models with JSON output."""
+    """Test list_installed_models with JSON output (still uses subprocess)."""
     mock_result = MagicMock()
     mock_result.stdout = '[{"name": "llama3.2"}, {"name": "codellama"}]'
     mock_result.returncode = 0
@@ -667,40 +867,52 @@ def test_save_all_modelfiles_main_integration(mocker, tmp_path, monkeypatch, cap
     # Should have multiple paths printed
     assert captured.out.count('.modelfile') >= 2
 
-def test_host_port_override_env(mocker):
-    """Test that -h and -p flags override OLLAMA_HOST environment variable."""
-    mock_run = mocker.patch('subprocess.run')
+def test_host_port_override_env(mocker, capsys):
+    """Test that -h and -p flags override OLLAMA_HOST environment variable via HTTP API."""
+    mock_response = MagicMock()
+    mock_response.iter_lines.return_value = create_mock_streaming_response("Response", done=True)
+    mock_response.raise_for_status = MagicMock()
+    
+    mock_post = mocker.patch('requests.post', return_value=mock_response)
     
     # Clear any existing OLLAMA_HOST
     with patch.dict(os.environ, {}, clear=True):
         main(['-h', 'example.com', '-p', '1234', 'test'])
         
-        # Verify OLLAMA_HOST was set correctly
-        assert mock_run.called
-        call_env = mock_run.call_args[1]['env']
-        assert call_env['OLLAMA_HOST'] == 'http://example.com:1234'
+        # Verify endpoint URL uses the host/port flags
+        assert mock_post.called
+        call_args = mock_post.call_args
+        assert call_args[0][0] == 'http://example.com:1234/api/generate'
 
-def test_host_only_default_port(mocker):
-    """Test that -h flag uses default port 11434."""
-    mock_run = mocker.patch('subprocess.run')
+def test_host_only_default_port(mocker, capsys):
+    """Test that -h flag uses default port 11434 via HTTP API."""
+    mock_response = MagicMock()
+    mock_response.iter_lines.return_value = create_mock_streaming_response("Response", done=True)
+    mock_response.raise_for_status = MagicMock()
+    
+    mock_post = mocker.patch('requests.post', return_value=mock_response)
     
     with patch.dict(os.environ, {}, clear=True):
         main(['-h', 'example.com', 'test'])
         
-        assert mock_run.called
-        call_env = mock_run.call_args[1]['env']
-        assert call_env['OLLAMA_HOST'] == 'http://example.com:11434'
+        assert mock_post.called
+        call_args = mock_post.call_args
+        assert call_args[0][0] == 'http://example.com:11434/api/generate'
 
-def test_port_only_default_host(mocker):
-    """Test that -p flag uses default host localhost."""
-    mock_run = mocker.patch('subprocess.run')
+def test_port_only_default_host(mocker, capsys):
+    """Test that -p flag uses default host localhost via HTTP API."""
+    mock_response = MagicMock()
+    mock_response.iter_lines.return_value = create_mock_streaming_response("Response", done=True)
+    mock_response.raise_for_status = MagicMock()
+    
+    mock_post = mocker.patch('requests.post', return_value=mock_response)
     
     with patch.dict(os.environ, {}, clear=True):
         main(['-p', '12000', 'test'])
         
-        assert mock_run.called
-        call_env = mock_run.call_args[1]['env']
-        assert call_env['OLLAMA_HOST'] == 'http://localhost:12000'
+        assert mock_post.called
+        call_args = mock_post.call_args
+        assert call_args[0][0] == 'http://localhost:12000/api/generate'
 
 def test_help_still_works(capsys):
     """Test that --help and -? still work and are not shadowed by host flag."""

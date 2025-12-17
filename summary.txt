@@ -53,6 +53,11 @@ Recent Changes:
 - Updated .gitignore: added .pytest_cache/ to ensure all test artifacts are ignored
 - Verified that build artifacts (src/ol.egg-info/, build/, __pycache__/, .pytest_cache/) are properly ignored and not tracked in git
 - Confirmed packaging and imports still work correctly after hygiene cleanup
+- Branch 3 (test/http-api-suite): Refactored tests to validate HTTP API streaming execution
+- Updated tests to mock `requests.post` instead of `subprocess.run` for API calls
+- Added assertions for endpoint URL (OLLAMA_HOST usage), temperature parameter, images field behavior, and streaming output
+- Kept subprocess tests for `ollama list` and `ollama show --modelfile` operations
+- Tests now provide authentic validation of the HTTP API execution path
 
 Next Steps:
 - Continue monitoring for any bug reports
