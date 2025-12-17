@@ -159,6 +159,10 @@ models:
   vision: llama3.2-vision  # Default model for images
   last_used: null          # Last used model (updated automatically)
 
+hosts:
+  text: null              # Default host for text models (null = use OLLAMA_HOST or localhost)
+  vision: null            # Default host for vision models (null = use OLLAMA_HOST or localhost)
+
 temperature:
   text: 0.7    # Default temperature for text models (0.0-2.0)
   vision: 0.7  # Default temperature for vision models (0.0-2.0)
@@ -292,7 +296,7 @@ ol
 
 ### Configuration Management
 
-You can set default models and temperatures using CLI commands:
+You can set default models, temperatures, and hosts using CLI commands:
 
 ```bash
 # Set default text model
@@ -306,7 +310,15 @@ ol --set-default-temperature text 0.8
 
 # Set default vision temperature
 ol --set-default-temperature vision 0.5
+
+# Set default host for vision models
+ol --set-default-host vision http://remote-server:11434
+
+# Set default host for text models
+ol --set-default-host text http://another-server:11434
 ```
+
+**Note**: CLI flags (`-h`/`-p`) always override configured hosts for individual commands. Configured hosts are only used when no CLI flags are provided.
 
 Or manually edit the configuration files in `~/.config/ol/`:
 - `config.yaml`: Main configuration file

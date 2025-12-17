@@ -5,6 +5,24 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.1.26] - 2025-12-17
+
+### Added
+- Per-model-type host configuration support
+- `--set-default-host` CLI argument to set default host for text or vision models
+- Config structure now includes `hosts` section with `text` and `vision` keys
+- Automatic host selection based on model type when no CLI flags are provided
+
+### Changed
+- Config structure now includes `hosts` section (backward compatible - defaults to None)
+- When a model is selected from config, its configured host is automatically used if no CLI flags provided
+- `display_defaults` now shows configured hosts for text and vision models
+
+### Notes
+- CLI flags (`-h`/`-p`) always override config-based hosts for individual commands
+- Configured hosts are only used when no CLI flags are provided
+- Hosts are normalized to include `http://` or `https://` prefix when stored
+
 ## [0.1.25] - 2025-12-17
 
 ### Added

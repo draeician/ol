@@ -232,3 +232,97 @@ def test_deep_merge_non_dict_values():
     assert result['number_key'] == 100
     assert result['nested'] == 'replaced'  # Dict replaced with string
 
+
+def test_get_host_for_type_defaults_to_none(tmp_path, monkeypatch):
+    """Test that get_host_for_type returns None by default."""
+    monkeypatch.setattr('ol.config.Path.home', lambda: tmp_path)
+    config = Config()
+    assert config.get_host_for_type('text') is None
+    assert config.get_host_for_type('vision') is None
+
+
+def test_set_host_for_type(tmp_path, monkeypatch):
+    """Test that host can be set and retrieved."""
+    monkeypatch.setattr('ol.config.Path.home', lambda: tmp_path)
+    config = Config()
+    config.set_host_for_type('text', 'http://server:11434')
+    assert config.get_host_for_type('text') == 'http://server:11434'
+    
+    config.set_host_for_type('vision', 'http://remote-server:11434')
+    assert config.get_host_for_type('vision') == 'http://remote-server:11434'
+
+
+def test_host_normalization(tmp_path, monkeypatch):
+    """Test that hosts are normalized (http:// prefix added if missing)."""
+    monkeypatch.setattr('ol.config.Path.home', lambda: tmp_path)
+    config = Config()
+    
+    # Test without http:// prefix
+    config.set_host_for_type('text', 'server:11434')
+    assert config.get_host_for_type('text') == 'http://server:11434'
+    
+    # Test with http:// prefix (should remain unchanged)
+    config.set_host_for_type('vision', 'http://remote:11434')
+    assert config.get_host_for_type('vision') == 'http://remote:11434'
+    
+    # Test with https:// prefix (should remain unchanged)
+    config.set_host_for_type('text', 'https://secure-server:11434')
+    assert config.get_host_for_type('text') == 'https://secure-server:11434'
+    
+    # Test localhost without port
+    config.set_host_for_type('vision', 'localhost')
+    assert config.get_host_for_type('vision') == 'http://localhost'
+
+
+def test_get_model_and_host_for_type(tmp_path, monkeypatch):
+    """Test that get_model_and_host_for_type returns both model and host."""
+    monkeypatch.setattr('ol.config.Path.home', lambda: tmp_path)
+    config = Config()
+    
+    # Test without host configured
+    model, host = config.get_model_and_host_for_type('text')
+    assert model == 'llama3.2'
+    assert host is None
+    
+    # Test with host configured
+    config.set_host_for_type('text', 'http://server:11434')
+    model, host = config.get_model_and_host_for_type('text')
+    assert model == 'llama3.2'
+    assert host == 'http://server:11434'
+
+
+def test_config_load_preserves_hosts(tmp_path, monkeypatch):
+    """Test that hosts persist in config file."""
+    monkeypatch.setattr('ol.config.Path.home', lambda: tmp_path)
+    config = Config()
+    config.set_host_for_type('text', 'http://server:11434')
+    config.set_host_for_type('vision', 'http://remote:11434')
+    
+    # Create new config instance to verify persistence
+    config2 = Config()
+    assert config2.get_host_for_type('text') == 'http://server:11434'
+    assert config2.get_host_for_type('vision') == 'http://remote:11434'
+
+
+def test_deep_merge_hosts(tmp_path, monkeypatch):
+    """Test that deep merge works for hosts section."""
+    monkeypatch.setattr('ol.config.Path.home', lambda: tmp_path)
+    
+    # Create config with partial hosts
+    config_file = tmp_path / '.config' / 'ol' / 'config.yaml'
+    config_file.parent.mkdir(parents=True)
+    partial_config = {
+        'hosts': {
+            'text': 'http://text-server:11434'
+            # vision not specified
+        }
+    }
+    with open(config_file, 'w') as f:
+        yaml.safe_dump(partial_config, f)
+    
+    config = Config()
+    # Text host should be from user config
+    assert config.get_host_for_type('text') == 'http://text-server:11434'
+    # Vision host should default to None
+    assert config.get_host_for_type('vision') is None
+
