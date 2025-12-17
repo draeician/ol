@@ -1,6 +1,6 @@
 Project Status Summary:
 
-Current Version: 0.1.19 (Stable)
+Current Version: 0.1.20 (Stable)
 
 Key Milestones:
 - Initial project setup and structure completed
@@ -63,6 +63,7 @@ Recent Changes:
 - Replaced silent exception swallowing with explicit error handling (debug mode shows full details, normal mode shows concise warnings)
 - Updated error handling in: config loading/saving, version management, hostname parsing, JSON parsing, and API streaming
 - Added tests to verify errors are properly surfaced and not hidden
+- Updated version to 0.1.20: error handling improvements
 
 Next Steps:
 - Continue monitoring for any bug reports

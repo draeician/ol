@@ -5,6 +5,18 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.1.20] - 2025-12-17
+
+### Fixed
+- Improved error handling to surface runtime errors consistently
+- Replaced silent exception swallowing with explicit error handling throughout the codebase
+- Debug mode (`-d`) now prints full exception details with traceback to stderr
+- Normal mode now prints concise warnings to stderr instead of silently ignoring errors
+
+### Changed
+- Error handlers in config loading/saving, version management, hostname parsing, JSON parsing, and API streaming now surface errors appropriately
+- Users will now see warnings when non-critical errors occur (e.g., config load failures, cache errors)
+
 ## [0.1.19] - 2025-12-17
 
 ### Changed

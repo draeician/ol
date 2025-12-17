@@ -20,4 +20,6 @@ Change -h from help to -host and make help --help -?
 ---
 @PLAN.md Proceed with Branch 4 implementation.
 ---
+Did your last update warrant a version bump?  because I'm not seeing one reflected.
+---
 I don't see the version number change when I did a pipx reinstall ol, did we update or need to update that?
