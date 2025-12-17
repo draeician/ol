@@ -86,6 +86,13 @@ Recent Changes:
 - Importing the package no longer writes to ~/.config/ol
 - CLI invocation still initializes configuration as expected
 - Added comprehensive tests proving import is clean and CLI still initializes
+- Updated version to 0.1.23: removed import side effects
+- Branch 8 (fix/update-no-shell): Remove shell execution in update path (security)
+- Replaced shell=True subprocess call with argument-list subprocess call
+- Uses shlex.split() to safely parse command string into arguments
+- Prevents shell injection vulnerabilities
+- Added comprehensive tests for update command execution
+- Tests verify argument list usage and error handling
 
 Next Steps:
 - Continue monitoring for any bug reports

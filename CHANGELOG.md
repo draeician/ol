@@ -5,6 +5,24 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.1.24] - 2025-12-17
+
+### Fixed
+- Removed shell execution in update path (security fix)
+- Update command now uses argument-list subprocess call instead of shell=True
+- Prevents shell injection vulnerabilities
+
+### Changed
+- Update command parsing uses `shlex.split()` to safely convert command string to argument list
+- Improved error handling for command parsing failures
+
+### Testing
+- Added comprehensive test suite (4 tests) for update command execution:
+  - Verifies argument list usage (no shell execution)
+  - Tests handling of URLs with special characters
+  - Tests error surfacing for update failures
+  - Tests handling of invalid command parsing
+
 ## [0.1.23] - 2025-12-17
 
 ### Changed
