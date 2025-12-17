@@ -21,11 +21,13 @@ python -m pipx ensurepath
 pipx install .
 ```
 
-During installation, `ol` will automatically:
+On first use, `ol` will automatically:
 1. Create the configuration directory at `~/.config/ol/`
 2. Initialize default configuration in `~/.config/ol/config.yaml`
 3. Set up command history tracking in `~/.config/ol/history.yaml`
 4. Create directories for templates and cache
+
+**Note**: Initialization happens when you first run the `ol` command, not during installation. This ensures the package can be imported without side effects.
 
 ### Using pip (Alternative)
 
@@ -77,8 +79,9 @@ OLLAMA_HOST=http://server:11434 ol -m llama3.2 --save-modelfile
 ### Remote Vision Models
 When using vision models with a remote Ollama instance:
 - Use absolute paths for image files
-- Images are base64-encoded and sent in the API payload via the `images` field
+- Images are base64-encoded and sent in the API payload via the `/api/chat` endpoint
 - The image data is transmitted directly to the remote Ollama API, not as file paths
+- Vision and mixed-content requests automatically use the `/api/chat` endpoint, while text-only requests use `/api/generate`
 
 ## Local Usage
 
@@ -127,10 +130,12 @@ ol -m llama3.2:latest --save-modelfile --output-dir ~/.config/ol/templates
 - `--check-updates`: Check for available updates
 - `--update`: Update to the latest version if available
 - `--help, -?`: Show help message and exit
-- `"PROMPT"`: The prompt to send to Ollama (optional if files are provided)
+- `"PROMPT"`: The prompt to send to Ollama (optional if files or STDIN are provided)
 - `FILES`: Optional files to inject into the prompt
 
-**Note**: Running `ol` without any arguments displays the current configuration defaults (host, models, temperatures).
+**Note**: 
+- Running `ol` without any arguments displays the current configuration defaults (host, models, temperatures).
+- You can pipe input to `ol` using `|` or redirect files using `<`. STDIN input is automatically used as the prompt.
 
 ## Configuration
 
@@ -225,6 +230,38 @@ ol -h server -p 11434 -m codellama "Review for security issues" *.py
 # Local custom port
 ol -h localhost -p 11435 -m llama3.2 "Hello"
 ```
+
+### STDIN Input (Piping and Redirection)
+
+You can pipe input or redirect files to `ol`:
+
+```bash
+# Pipe text input
+echo "What is Python?" | ol
+
+# Redirect file content
+ol < file.txt
+
+# Combine STDIN with prompt argument
+echo "def hello():" | ol "Review this code"
+
+# Pipe with files
+cat code.py | ol main.py
+
+# Pipe with remote instance
+echo "Explain this" | OLLAMA_HOST=http://server:11434 ol
+
+# Pipe with model selection
+echo "Review this code" | ol -m codellama
+
+# Multiline input via pipe
+cat <<EOF | ol "Analyze this code"
+def example():
+    return True
+EOF
+```
+
+**Note**: When STDIN is available (piping/redirection), it's automatically used as the prompt. If both STDIN and a prompt argument are provided, STDIN is combined with the prompt argument.
 
 ### Image Analysis
 

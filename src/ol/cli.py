@@ -712,6 +712,11 @@ def main(argv: Optional[Sequence[str]] = None) -> None:
               OLLAMA_HOST=http://server:11434 ol "Your prompt" file.txt
               ol -h server -p 11434 -m llama3.2 "Your prompt" file.txt
               ol -h localhost -p 11435 "Hello"
+              
+              # STDIN input (piping/redirection):
+              echo "What is Python?" | ol
+              ol < file.txt
+              echo "code here" | ol "Review this code"
         ''')
     )
     
