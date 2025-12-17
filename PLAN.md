@@ -38,7 +38,7 @@ I’m keeping **version bump + CHANGELOG** edits isolated to the **release branc
 
 ---
 
-## Branch 2 — `chore/repo-hygiene`
+## Branch 2 — `chore/repo-hygiene` ✅ COMPLETED
 
 **Goal:** remove generated artifacts from git to reduce churn.
 
@@ -59,7 +59,7 @@ I’m keeping **version bump + CHANGELOG** edits isolated to the **release branc
 
 ---
 
-## Branch 3 — `test/http-api-suite`
+## Branch 3 — `test/http-api-suite` ✅ COMPLETED
 
 **Goal:** get authentic testing online for the current HTTP API execution path.
 
@@ -88,7 +88,7 @@ I’m keeping **version bump + CHANGELOG** edits isolated to the **release branc
 
 ## Fix branches (after tests are enforcing reality)
 
-### Branch 4 — `fix/error-surfacing`
+### Branch 4 — `fix/error-surfacing` ✅ COMPLETED
 
 **Goal:** remove silent ignore paths; raise explicit failures or emit clear warnings (debug shows full context).
 
@@ -106,7 +106,7 @@ I’m keeping **version bump + CHANGELOG** edits isolated to the **release branc
 
 ---
 
-### Branch 5 — `fix/vision-mixed-contract` (updated: try **chat**, revert if issues)
+### Branch 5 — `fix/vision-mixed-contract` ✅ COMPLETED (updated: try **chat**, revert if issues)
 
 **Goal:** route vision + mixed-content through **`/api/chat`** with a strict payload contract; keep the change isolated so we can revert cleanly if it misbehaves in real environments.
 
