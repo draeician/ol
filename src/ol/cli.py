@@ -26,11 +26,14 @@ def get_env() -> Dict[str, str]:
         env['OLLAMA_HOST'] = f"http://{env['OLLAMA_HOST']}"
     return env
 
-def get_hostname_for_filename() -> str:
+def get_hostname_for_filename(debug: bool = False) -> str:
     """
     Get the hostname to use in filenames.
     
     Extracts hostname from OLLAMA_HOST if set, otherwise uses local hostname.
+    
+    Args:
+        debug: Whether to show debug information
     
     Returns:
         str: Hostname to use in filename
@@ -43,9 +46,14 @@ def get_hostname_for_filename() -> str:
             hostname = parsed.hostname
             if hostname:
                 return hostname
-        except Exception:
+        except Exception as e:
             # If parsing fails, fall back to local hostname
-            pass
+            if debug:
+                import traceback
+                print(f"Warning: Failed to parse OLLAMA_HOST URL '{env['OLLAMA_HOST']}': {e}", file=sys.stderr)
+                traceback.print_exc(file=sys.stderr)
+            else:
+                print(f"Warning: Failed to parse OLLAMA_HOST URL, using local hostname", file=sys.stderr)
     # Fall back to local hostname
     return socket.gethostname()
 
@@ -79,8 +87,11 @@ def list_installed_models(env: Dict[str, str], debug: bool = False) -> List[str]
             return names
     except Exception as e:
         if debug:
+            import traceback
             print(f"DEBUG: JSON parsing failed: {e}, falling back to text parsing", file=sys.stderr)
-        pass
+            traceback.print_exc(file=sys.stderr)
+        else:
+            print(f"Warning: Failed to parse JSON model list, falling back to text parsing", file=sys.stderr)
     
     # Fallback: parse plain text table (header "NAME  ID  SIZE  MODIFIED")
     r = subprocess.run(
@@ -305,7 +316,7 @@ def save_modelfile(model: str, out_dir: Optional[str] = None, debug: bool = Fals
         
         # Build safe filename
         safe_model = sanitize_model_name(model)
-        hostname = get_hostname_for_filename()
+        hostname = get_hostname_for_filename(debug=debug)
         timestamp = datetime.now().strftime('%Y%m%d-%H%M%S')
         filename = f"{safe_model}-{hostname}-{timestamp}.modelfile"
         
@@ -407,7 +418,11 @@ def call_ollama_api(model: str, prompt: str, temperature: float, image_files: Op
                         print(data['response'], end='', flush=True)
                     if data.get('done', False):
                         break
-                except json.JSONDecodeError:
+                except json.JSONDecodeError as e:
+                    if debug:
+                        print(f"Warning: Failed to parse JSON line in stream: {line.decode('utf-8', errors='replace')[:100]}", file=sys.stderr)
+                        print(f"Error: {e}", file=sys.stderr)
+                    # Continue processing other lines
                     continue
         
         print()  # Newline after response

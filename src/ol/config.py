@@ -58,7 +58,12 @@ class Config:
                 merged.update(config)
                 return merged
         except Exception as e:
-            print(f"Error loading config: {e}", file=os.sys.stderr)
+            if self.debug:
+                import traceback
+                print(f"Error loading config: {e}", file=os.sys.stderr)
+                traceback.print_exc(file=os.sys.stderr)
+            else:
+                print(f"Warning: Failed to load config file, using defaults: {e}", file=os.sys.stderr)
             return DEFAULT_CONFIG.copy()
 
     def _save_config(self, config: Dict[str, Any]) -> None:
@@ -67,7 +72,12 @@ class Config:
             with open(self.config_file, 'w') as f:
                 yaml.safe_dump(config, f, default_flow_style=False)
         except Exception as e:
-            print(f"Error saving config: {e}", file=os.sys.stderr)
+            if self.debug:
+                import traceback
+                print(f"Error saving config: {e}", file=os.sys.stderr)
+                traceback.print_exc(file=os.sys.stderr)
+            else:
+                print(f"Warning: Failed to save config: {e}", file=os.sys.stderr)
 
     def get_model_for_type(self, type_: str = 'text') -> str:
         """Get the model for the specified type."""

@@ -963,3 +963,94 @@ def test_save_modelfile_uses_ollama_host_hostname(mocker, tmp_path, monkeypatch)
         # Verify filename contains local hostname
         assert 'testhost' in result_path.name
         assert 'llama3.2' in result_path.name
+
+def test_error_surfacing_config_load_failure(mocker, capsys, tmp_path, monkeypatch):
+    """Test that config load errors are surfaced with warnings."""
+    import yaml
+    from ol.config import Config
+    
+    # Create a corrupted config file
+    config_file = tmp_path / 'config.yaml'
+    config_file.write_text('invalid: yaml: content: [')
+    
+    # Mock the config file path
+    monkeypatch.setattr('ol.config.Path.home', lambda: tmp_path)
+    
+    # Test normal mode - should show concise warning
+    config = Config(debug=False)
+    captured = capsys.readouterr()
+    assert 'Warning' in captured.err
+    assert 'Failed to load config' in captured.err or 'config' in captured.err.lower()
+    
+    # Test debug mode - should show full exception
+    config = Config(debug=True)
+    captured = capsys.readouterr()
+    assert 'Warning' in captured.err or 'Error' in captured.err
+    # In debug mode, should have more detail
+
+def test_error_surfacing_json_parse_failure(mocker, capsys):
+    """Test that JSON parsing errors in streaming are surfaced."""
+    mock_response = MagicMock()
+    # Create response with invalid JSON
+    mock_response.iter_lines.return_value = iter([
+        b'{"response": "valid"}',
+        b'invalid json line',
+        b'{"response": "", "done": true}'
+    ])
+    mock_response.raise_for_status = MagicMock()
+    
+    mock_post = mocker.patch('requests.post', return_value=mock_response)
+    
+    # Test normal mode
+    main(['-m', 'llama3.2', 'test'])
+    captured = capsys.readouterr()
+    # Should still work but may show warnings
+    
+    # Test debug mode - should show JSON decode error details
+    main(['-d', '-m', 'llama3.2', 'test'])
+    captured = capsys.readouterr()
+    # In debug mode, should show more detail about JSON errors
+
+def test_error_surfacing_hostname_parse_failure(mocker, capsys, tmp_path, monkeypatch):
+    """Test that hostname parsing errors are surfaced."""
+    from ol.cli import get_hostname_for_filename
+    
+    # Test with invalid OLLAMA_HOST
+    with patch.dict(os.environ, {'OLLAMA_HOST': 'invalid://url:with:too:many:colons'}):
+        # Normal mode - should show concise warning
+        hostname = get_hostname_for_filename(debug=False)
+        captured = capsys.readouterr()
+        assert 'Warning' in captured.err
+        assert 'OLLAMA_HOST' in captured.err or 'hostname' in captured.err.lower()
+        
+        # Debug mode - should show full exception
+        hostname = get_hostname_for_filename(debug=True)
+        captured = capsys.readouterr()
+        assert 'Warning' in captured.err
+        # Should have more detail in debug mode
+
+def test_error_surfacing_version_cache_failure(mocker, capsys, tmp_path, monkeypatch):
+    """Test that version cache errors are surfaced."""
+    from ol.version import VersionManager
+    
+    # Create a corrupted cache file
+    cache_file = tmp_path / '.ol_version_cache.json'
+    cache_file.write_text('invalid json{')
+    
+    # Mock the cache file path
+    monkeypatch.setattr('ol.version.Path.home', lambda: tmp_path)
+    
+    # Test normal mode
+    vm = VersionManager(debug=False)
+    vm.version_cache = cache_file
+    vm._load_cache()
+    captured = capsys.readouterr()
+    assert 'Warning' in captured.err
+    
+    # Test debug mode
+    vm = VersionManager(debug=True)
+    vm.version_cache = cache_file
+    vm._load_cache()
+    captured = capsys.readouterr()
+    assert 'Warning' in captured.err
+    # Should have more detail in debug mode

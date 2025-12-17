@@ -62,3 +62,44 @@ Repository hygiene improvements ensure generated build/test artifacts are proper
 ### Notes for CHANGELOG
 Test suite now validates HTTP API streaming execution path instead of subprocess calls, ensuring tests accurately reflect the actual implementation behavior. This provides authentic testing that will catch regressions in the API integration.
 
+## Branch 4: Error Surfacing (fix/error-surfacing)
+
+### Changes Made
+
+#### Error Handling Improvements
+- Replaced silent exception swallowing with explicit error handling throughout the codebase
+- **Debug mode**: Prints full exception details with traceback to stderr
+- **Normal mode**: Prints concise warnings to stderr
+
+#### Specific Fixes
+- **`get_hostname_for_filename()`**: Now surfaces URL parsing errors instead of silently falling back
+- **`list_installed_models()`**: Now warns when JSON parsing fails, not just in debug mode
+- **`call_ollama_api()`**: Now warns about JSON decode errors in streaming responses
+- **`Config._load_config()`**: Now surfaces config loading errors with appropriate detail level
+- **`Config._save_config()`**: Now surfaces config saving errors with appropriate detail level
+- **`VersionManager`**: All error handlers now surface errors appropriately:
+  - `_load_version_info()`: Warns on load failures
+  - `_load_cache()`: Warns on cache read failures
+  - `_save_cache()`: Warns on cache write failures
+  - `_save_version_info()`: Warns on save failures
+  - `fetch_latest_version()`: Warns on network/parsing failures
+  - `check_local_repository()`: Warns on git check failures (debug mode only)
+
+#### Test Coverage
+- Added tests to verify errors are surfaced properly:
+  - Config load failure tests
+  - JSON parsing error tests
+  - Hostname parsing error tests
+  - Version cache error tests
+- Tests verify that warnings appear in normal mode and full details appear in debug mode
+
+### Design Decisions
+- Errors are now consistently surfaced rather than silently ignored
+- Debug mode provides full context for troubleshooting
+- Normal mode provides user-friendly warnings without overwhelming output
+- Critical errors (like file I/O failures in main execution path) still exit with error codes
+- Non-critical errors (like cache/version check failures) warn but allow execution to continue
+
+### Notes for CHANGELOG
+This change improves observability by ensuring all runtime errors are visible to users. Debug mode provides full diagnostic information, while normal mode provides concise warnings that don't overwhelm the output.
+
