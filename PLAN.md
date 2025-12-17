@@ -242,7 +242,7 @@ I’m keeping **version bump + CHANGELOG** edits isolated to the **release branc
 
 ---
 
-## Final branch — `release/0.1.24` (or next version)
+## Final branch — `release/0.1.25` ✅ COMPLETED
 
 **Goal:** versioning, changelog, final verification, tag.
 
