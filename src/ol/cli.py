@@ -480,7 +480,8 @@ def call_ollama_api(model: str, prompt: str, temperature: float, image_files: Op
         sys.exit(1)
 
 def run_ollama(prompt: str, model: str = None, files: Optional[List[str]] = None, 
-               temperature: Optional[float] = None, debug: bool = False) -> None:
+               temperature: Optional[float] = None, debug: bool = False, 
+               cli_host_provided: bool = False) -> None:
     """
     Run Ollama with the given prompt and optional files.
     
@@ -542,6 +543,15 @@ def run_ollama(prompt: str, model: str = None, files: Optional[List[str]] = None
             model_type = 'vision'
         else:
             model_type = 'text'
+    
+    # Check if model type has a configured host, and use it if no CLI flags were provided
+    if not cli_host_provided:
+        config_host = config.get_host_for_type(model_type)
+        if config_host:
+            # Set OLLAMA_HOST from config (will be used by get_env() later)
+            os.environ['OLLAMA_HOST'] = config_host
+            if debug:
+                print(f"Using configured host for {model_type} model: {config_host}")
     
     # Determine temperature to use
     if temperature is None:
@@ -624,9 +634,21 @@ def display_defaults(config: Config, env: Dict[str, str]) -> None:
     text_temp = config.get_temperature_for_type('text')
     vision_temp = config.get_temperature_for_type('vision')
     
+    # Get host defaults
+    text_host = config.get_host_for_type('text')
+    vision_host = config.get_host_for_type('vision')
+    
     # Format and print
     print("Current Configuration:")
     print(f"  Host: {host}")
+    if text_host:
+        print(f"  Default Text Host: {text_host}")
+    else:
+        print(f"  Default Text Host: localhost:11434 (default)")
+    if vision_host:
+        print(f"  Default Vision Host: {vision_host}")
+    else:
+        print(f"  Default Vision Host: localhost:11434 (default)")
     print(f"  Default Text Model: {text_model}")
     print(f"  Default Vision Model: {vision_model}")
     print(f"  Default Text Temperature: {text_temp}")
@@ -692,6 +714,28 @@ def set_default_temperature(config: Config, model_type: str, temperature: float)
         print(f"Error: {e}", file=sys.stderr)
         sys.exit(1)
 
+def set_default_host(config: Config, model_type: str, host: str) -> None:
+    """
+    Set the default host for a specific model type.
+    
+    Args:
+        config: Config instance to update
+        model_type: Type of model ('text' or 'vision')
+        host: Host URL (e.g., 'http://server:11434' or 'server:11434')
+    
+    Raises:
+        SystemExit: If model_type is invalid
+    """
+    # Validate model type
+    if model_type not in ('text', 'vision'):
+        print(f"Error: Model type must be 'text' or 'vision', got '{model_type}'", file=sys.stderr)
+        sys.exit(1)
+    
+    # Set the host (normalization happens in config.set_host_for_type)
+    config.set_host_for_type(model_type, host)
+    normalized_host = config.get_host_for_type(model_type)
+    print(f"Default {model_type} host set to: {normalized_host}")
+
 def main(argv: Optional[Sequence[str]] = None) -> None:
     """Main entry point for the ol command."""
     # Initialize configuration on CLI execution (not on import)
@@ -717,6 +761,9 @@ def main(argv: Optional[Sequence[str]] = None) -> None:
               echo "What is Python?" | ol
               ol < file.txt
               echo "code here" | ol "Review this code"
+              
+              # Set default host for model type:
+              ol --set-default-host vision http://server:11434
         ''')
     )
     
@@ -753,6 +800,8 @@ def main(argv: Optional[Sequence[str]] = None) -> None:
                        help='Set default model for type (text or vision). Usage: --set-default-model TYPE MODEL_NAME')
     parser.add_argument('--set-default-temperature', nargs=2, metavar=('TYPE', 'TEMPERATURE'),
                        help='Set default temperature for type (text or vision). Usage: --set-default-temperature TYPE TEMP')
+    parser.add_argument('--set-default-host', nargs=2, metavar=('TYPE', 'HOST'),
+                       help='Set default host for type (text or vision). Usage: --set-default-host TYPE HOST_URL')
     parser.add_argument('--temperature', type=float,
                        help='Temperature for this command (0.0-2.0, overrides default)')
     parser.add_argument('prompt', nargs='?', default=None,
@@ -789,6 +838,12 @@ def main(argv: Optional[Sequence[str]] = None) -> None:
         except ValueError:
             print(f"Error: Temperature must be a number, got '{temperature_str}'", file=sys.stderr)
             sys.exit(1)
+        sys.exit(0)
+
+    # Handle set-default-host command
+    if args.set_default_host:
+        model_type, host = args.set_default_host
+        set_default_host(config, model_type, host)
         sys.exit(0)
 
     # Handle version management commands first
@@ -905,7 +960,10 @@ def main(argv: Optional[Sequence[str]] = None) -> None:
     except Exception:
         pass  # Silently ignore any version check errors
 
-    run_ollama(args.prompt, args.model, args.files, args.temperature, args.debug)
+    # Determine if CLI host flags were provided
+    cli_host_provided = args.host is not None or args.port is not None
+    
+    run_ollama(args.prompt, args.model, args.files, args.temperature, args.debug, cli_host_provided)
 
 if __name__ == '__main__':
     main() 

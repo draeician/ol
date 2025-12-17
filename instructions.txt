@@ -35,3 +35,7 @@ I don't see the version number change when I did a pipx reinstall ol, did we upd
 Proceed with Branch 9 implementation please.
 ---
 Proceed to the final branch
+---
+Plan and implement this feature please we just discussed.  Create a branch, do the work, Insure it passes all tests, increment bersion number, commit changes and push when done please.
+
+Extend the config structure to have the host, adda  --set-default-host argument. Insure you update the documentation and help usage as well.

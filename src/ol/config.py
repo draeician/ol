@@ -39,6 +39,10 @@ DEFAULT_CONFIG = {
         'vision': 'llama3.2-vision',
         'last_used': None
     },
+    'hosts': {
+        'text': None,
+        'vision': None
+    },
     'temperature': {
         'text': 0.7,
         'vision': 0.7
@@ -160,4 +164,55 @@ class Config:
             self.config['temperature'] = {}
         
         self.config['temperature'][type_] = temperature
-        self._save_config(self.config) 
+        self._save_config(self.config)
+
+    def get_host_for_type(self, type_: str = 'text') -> Optional[str]:
+        """Get the configured host for the specified model type."""
+        host = self.config.get('hosts', {}).get(type_)
+        if self.debug:
+            print(f"DEBUG: get_host_for_type({type_}) -> {host}")
+        return host
+
+    def set_host_for_type(self, type_: str, host: str) -> None:
+        """Set the host for a specific model type."""
+        # Normalize host URL format
+        normalized_host = self._normalize_host(host)
+        
+        # Ensure hosts section exists
+        if 'hosts' not in self.config:
+            self.config['hosts'] = {}
+        
+        self.config['hosts'][type_] = normalized_host
+        if self.debug:
+            print(f"DEBUG: set_host_for_type({type_}, {normalized_host})")
+        self._save_config(self.config)
+
+    def _normalize_host(self, host: str) -> str:
+        """
+        Normalize host URL format.
+        
+        Ensures host has http:// or https:// prefix.
+        If host is just 'localhost' or 'localhost:port', adds http:// prefix.
+        
+        Args:
+            host: Host string (e.g., 'server:11434', 'http://server:11434', 'localhost')
+        
+        Returns:
+            Normalized host URL with protocol prefix
+        """
+        host = host.strip()
+        
+        # If already has protocol, return as-is
+        if host.startswith('http://') or host.startswith('https://'):
+            return host
+        
+        # Add http:// prefix
+        return f'http://{host}'
+
+    def get_model_and_host_for_type(self, type_: str = 'text') -> tuple[str, Optional[str]]:
+        """Get both model name and host for the specified type."""
+        model = self.get_model_for_type(type_)
+        host = self.get_host_for_type(type_)
+        if self.debug:
+            print(f"DEBUG: get_model_and_host_for_type({type_}) -> ({model}, {host})")
+        return model, host 

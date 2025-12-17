@@ -103,6 +103,11 @@ Recent Changes:
 - Added comprehensive tests for STDIN input support
 - Updated version to 0.1.25: STDIN input support
 - Release 0.1.25: Final release branch with version verification, tagging, and documentation updates
+- Per-model-type host configuration (0.1.26): Added ability to set default hosts per model type (text/vision)
+- Added --set-default-host CLI argument to configure hosts for text or vision models
+- Config structure extended with hosts section (backward compatible)
+- CLI flags (-h/-p) always override config hosts for individual commands
+- Updated version to 0.1.26: Per-model-type host configuration
 - All feature branches (1-9) completed and merged to main
 - Version 0.1.25 includes:
   - STDIN input support (Branch 9)

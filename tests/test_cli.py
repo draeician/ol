@@ -1138,3 +1138,102 @@ def test_error_surfacing_version_cache_failure(mocker, capsys, tmp_path, monkeyp
     captured = capsys.readouterr()
     assert 'Warning' in captured.err
     # Should have more detail in debug mode
+
+
+def test_set_default_host_command(tmp_path, monkeypatch, capsys):
+    """Test that --set-default-host CLI argument works."""
+    monkeypatch.setattr('ol.config.Path.home', lambda: tmp_path)
+    from ol.config import Config
+    
+    # Test setting host for text model
+    main(['--set-default-host', 'text', 'http://text-server:11434'])
+    captured = capsys.readouterr()
+    assert 'Default text host set to: http://text-server:11434' in captured.out
+    
+    # Verify it was saved
+    config = Config()
+    assert config.get_host_for_type('text') == 'http://text-server:11434'
+    
+    # Test setting host for vision model
+    main(['--set-default-host', 'vision', 'http://vision-server:11434'])
+    captured = capsys.readouterr()
+    assert 'Default vision host set to: http://vision-server:11434' in captured.out
+    
+    # Verify it was saved
+    config = Config()
+    assert config.get_host_for_type('vision') == 'http://vision-server:11434'
+
+
+def test_set_default_host_invalid_type(tmp_path, monkeypatch, capsys):
+    """Test that --set-default-host validates model type."""
+    monkeypatch.setattr('ol.config.Path.home', lambda: tmp_path)
+    
+    with pytest.raises(SystemExit):
+        main(['--set-default-host', 'invalid', 'http://server:11434'])
+    
+    captured = capsys.readouterr()
+    assert 'Error: Model type must be \'text\' or \'vision\'' in captured.err
+
+
+def test_set_default_host_normalization(tmp_path, monkeypatch, capsys):
+    """Test that --set-default-host normalizes host URLs."""
+    monkeypatch.setattr('ol.config.Path.home', lambda: tmp_path)
+    from ol.config import Config
+    
+    # Test without http:// prefix
+    main(['--set-default-host', 'text', 'server:11434'])
+    captured = capsys.readouterr()
+    assert 'http://server:11434' in captured.out
+    
+    # Verify normalization
+    config = Config()
+    assert config.get_host_for_type('text') == 'http://server:11434'
+
+
+def test_config_host_used_when_no_cli_flags(mocker, tmp_path, monkeypatch, capsys):
+    """Test that config host is used when no CLI flags are provided."""
+    monkeypatch.setattr('ol.config.Path.home', lambda: tmp_path)
+    from ol.config import Config
+    
+    # Set up config with host for text model
+    config = Config()
+    config.set_host_for_type('text', 'http://config-server:11434')
+    
+    # Mock the API call
+    mock_response = MagicMock()
+    mock_response.iter_lines.return_value = create_mock_streaming_response("Response", done=True)
+    mock_response.raise_for_status = MagicMock()
+    mock_post = mocker.patch('requests.post', return_value=mock_response)
+    
+    # Run without CLI flags - should use config host
+    main(['test prompt'])
+    
+    # Verify API was called with config host
+    assert mock_post.called
+    call_args = mock_post.call_args
+    assert 'http://config-server:11434' in call_args[0][0]
+
+
+def test_cli_flags_override_config_host(mocker, tmp_path, monkeypatch, capsys):
+    """Test that CLI flags override config host."""
+    monkeypatch.setattr('ol.config.Path.home', lambda: tmp_path)
+    from ol.config import Config
+    
+    # Set up config with host for text model
+    config = Config()
+    config.set_host_for_type('text', 'http://config-server:11434')
+    
+    # Mock the API call
+    mock_response = MagicMock()
+    mock_response.iter_lines.return_value = create_mock_streaming_response("Response", done=True)
+    mock_response.raise_for_status = MagicMock()
+    mock_post = mocker.patch('requests.post', return_value=mock_response)
+    
+    # Run with CLI flags - should override config host
+    main(['-h', 'cli-server', '-p', '11435', 'test prompt'])
+    
+    # Verify API was called with CLI host, not config host
+    assert mock_post.called
+    call_args = mock_post.call_args
+    assert 'http://cli-server:11435' in call_args[0][0]
+    assert 'config-server' not in call_args[0][0]
