@@ -41,7 +41,7 @@ pip install -e .
 
 ## Remote Usage
 
-You can use `ol` with a remote Ollama instance by setting the `OLLAMA_HOST` environment variable or using the `-H/--host` and `-p/--port` flags:
+You can use `ol` with a remote Ollama instance by setting the `OLLAMA_HOST` environment variable or using the `-h/--host` and `-p/--port` flags:
 
 ```bash
 # Basic text prompt with remote instance (using environment variable)
@@ -114,15 +114,23 @@ ol -m llama3.2:latest --save-modelfile --output-dir ~/.config/ol/templates
 
 - `-l, --list`: List available models (works with both local and remote instances)
 - `-m MODEL, --model MODEL`: Specify the model to use (default: from config)
-- `-d, --debug`: Show debug information including equivalent shell commands
+- `-d, --debug`: Show debug information including API request details
 - `-h HOST, --host HOST`: Ollama host (default: localhost). Overrides OLLAMA_HOST for this command.
 - `-p PORT, --port PORT`: Ollama port (default: 11434). Overrides OLLAMA_HOST for this command.
+- `--set-default-model TYPE MODEL`: Set default model for type (text or vision). Usage: `--set-default-model text codellama`
+- `--set-default-temperature TYPE TEMP`: Set default temperature for type (text or vision). Usage: `--set-default-temperature text 0.8`
+- `--temperature TEMP`: Temperature for this command (0.0-2.0, overrides default)
 - `--save-modelfile`: Download and save the Modelfile for the specified model
 - `-a, --all`: Save Modelfiles for all models (requires --save-modelfile)
 - `--output-dir DIR`: Output directory for saved Modelfile (default: current working directory)
+- `--version`: Show version information
+- `--check-updates`: Check for available updates
+- `--update`: Update to the latest version if available
 - `--help, -?`: Show help message and exit
 - `"PROMPT"`: The prompt to send to Ollama (optional if files are provided)
 - `FILES`: Optional files to inject into the prompt
+
+**Note**: Running `ol` without any arguments displays the current configuration defaults (host, models, temperatures).
 
 ## Configuration
 
@@ -142,9 +150,13 @@ The tool uses a YAML configuration file located at `~/.config/ol/config.yaml`. T
 
 ```yaml
 models:
-  text: llama3.2      # Default model for text
-  vision: llava       # Default model for images
-  last_used: null     # Last used model (updated automatically)
+  text: llama3.2          # Default model for text
+  vision: llama3.2-vision  # Default model for images
+  last_used: null          # Last used model (updated automatically)
+
+temperature:
+  text: 0.7    # Default temperature for text models (0.0-2.0)
+  vision: 0.7  # Default temperature for vision models (0.0-2.0)
 
 default_prompts:
   .py: 'Review this Python code and provide suggestions for improvement:'
@@ -227,22 +239,71 @@ OLLAMA_HOST=http://server:11434 ol "What's in this image?" /home/user/images/pho
 ### Debug Mode
 
 ```bash
-# Show equivalent shell commands
+# Show API request details and debug information
 ol -d "Your prompt" file.txt
 
 # Debug with remote instance
 OLLAMA_HOST=http://server:11434 ol -d "Your prompt" file.txt
 ```
 
-## Configuration Management
+### Viewing Current Configuration
 
-You can manually edit the configuration files in `~/.config/ol/`:
+```bash
+# Display current defaults (host, models, temperatures)
+ol
+```
+
+### Configuration Management
+
+You can set default models and temperatures using CLI commands:
+
+```bash
+# Set default text model
+ol --set-default-model text codellama
+
+# Set default vision model
+ol --set-default-model vision llava
+
+# Set default text temperature
+ol --set-default-temperature text 0.8
+
+# Set default vision temperature
+ol --set-default-temperature vision 0.5
+```
+
+Or manually edit the configuration files in `~/.config/ol/`:
 - `config.yaml`: Main configuration file
 - `history.yaml`: Command history
 - `templates/`: Directory for custom templates
 - `cache/`: Cache directory for responses
 
 The configuration is automatically loaded and saved as you use the tool.
+
+### Temperature Control
+
+```bash
+# Use custom temperature for a single command (overrides default)
+ol --temperature 0.9 "Your prompt here"
+
+# Use lower temperature for more focused responses
+ol --temperature 0.3 "Explain this code" main.py
+
+# Temperature works with both text and vision models
+ol --temperature 0.8 "What's in this image?" photo.jpg
+```
+
+### Version Management
+
+```bash
+# Check current version
+ol --version
+
+# Check for available updates
+ol --check-updates
+
+# Update to latest version
+ol --update
+```
 
 ## Uninstallation
 
