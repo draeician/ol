@@ -457,8 +457,13 @@ def call_ollama_api(model: str, prompt: str, temperature: float, image_files: Op
             if line:
                 try:
                     data = json.loads(line)
+                    # Handle both /api/generate and /api/chat response formats
                     if 'response' in data:
+                        # /api/generate format
                         print(data['response'], end='', flush=True)
+                    elif 'message' in data and isinstance(data['message'], dict) and 'content' in data['message']:
+                        # /api/chat format
+                        print(data['message']['content'], end='', flush=True)
                     if data.get('done', False):
                         break
                 except json.JSONDecodeError as e:
