@@ -38,7 +38,7 @@ I’m keeping **version bump + CHANGELOG** edits isolated to the **release branc
 
 ---
 
-## Branch 2 — `chore/repo-hygiene`
+## Branch 2 — `chore/repo-hygiene` ✅ COMPLETED
 
 **Goal:** remove generated artifacts from git to reduce churn.
 
