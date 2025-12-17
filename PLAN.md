@@ -158,7 +158,7 @@ I’m keeping **version bump + CHANGELOG** edits isolated to the **release branc
 
 ---
 
-### Branch 6 — `fix/config-deep-merge`
+### Branch 6 — `fix/config-deep-merge` ✅ COMPLETED
 
 **Goal:** deep-merge defaults so partial configs never drop nested keys.
 
