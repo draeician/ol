@@ -63,14 +63,24 @@ class VersionManager:
             with open(self.version_info, 'w') as f:
                 json.dump(info, f, indent=2)
         except Exception as e:
-            print(f"Error saving version info: {e}")
+            if self.debug:
+                import traceback
+                print(f"Warning: Failed to save version info: {e}", file=sys.stderr)
+                traceback.print_exc(file=sys.stderr)
+            else:
+                print(f"Warning: Failed to save version info", file=sys.stderr)
 
     def _load_version_info(self) -> Dict:
         """Load version information from file."""
         try:
             with open(self.version_info, 'r') as f:
                 return json.load(f)
-        except Exception:
+        except Exception as e:
+            if self.debug:
+                import traceback
+                print(f"Warning: Failed to load version info, using defaults: {e}", file=sys.stderr)
+                traceback.print_exc(file=sys.stderr)
+            # Return defaults on error
             return {
                 'version': current_version,
                 'last_check': None,
@@ -94,7 +104,12 @@ class VersionManager:
                     return cache
                 self._debug(f"Cache expired (age: {time_since_check:.0f} seconds)")
         except Exception as e:
-            self._debug(f"Error reading cache: {e}")
+            if self.debug:
+                import traceback
+                print(f"Warning: Failed to read version cache: {e}", file=sys.stderr)
+                traceback.print_exc(file=sys.stderr)
+            else:
+                print(f"Warning: Failed to read version cache", file=sys.stderr)
         return None
 
     def _save_cache(self, data: Dict) -> None:
@@ -108,7 +123,12 @@ class VersionManager:
                 json.dump(cache_data, f, indent=2)
                 self._debug("Updated version cache")
         except Exception as e:
-            print(f"Error saving cache: {e}")
+            if self.debug:
+                import traceback
+                print(f"Warning: Failed to save version cache: {e}", file=sys.stderr)
+                traceback.print_exc(file=sys.stderr)
+            else:
+                print(f"Warning: Failed to save version cache", file=sys.stderr)
 
     def fetch_latest_version(self) -> Optional[Dict]:
         """Fetch latest version information from GitHub."""
@@ -127,9 +147,15 @@ class VersionManager:
             self._debug("Could not extract version from pyproject.toml")
         except requests.RequestException as e:
             if isinstance(e, requests.exceptions.HTTPError) and e.response.status_code == 404:
-                self._debug("Could not fetch pyproject.toml from GitHub (404)")
+                if self.debug:
+                    print("Warning: Could not fetch pyproject.toml from GitHub (404)", file=sys.stderr)
             else:
-                self._debug(f"Error fetching from GitHub: {e}")
+                if self.debug:
+                    import traceback
+                    print(f"Warning: Error fetching from GitHub: {e}", file=sys.stderr)
+                    traceback.print_exc(file=sys.stderr)
+                else:
+                    print(f"Warning: Failed to check for updates", file=sys.stderr)
             return None
         return None
 
@@ -145,7 +171,11 @@ class VersionManager:
                 return version
             self._debug("No tags found in local repository")
         except Exception as e:
-            self._debug(f"Error checking local repository: {e}")
+            if self.debug:
+                import traceback
+                print(f"Warning: Error checking local repository: {e}", file=sys.stderr)
+                traceback.print_exc(file=sys.stderr)
+            # Silently return None for local repo check failures (not critical)
         return None
 
     def get_latest_version(self, force: bool = False) -> Tuple[Optional[str], Optional[str], Optional[str]]:

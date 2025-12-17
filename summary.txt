@@ -59,6 +59,10 @@ Recent Changes:
 - Kept subprocess tests for `ollama list` and `ollama show --modelfile` operations
 - Tests now provide authentic validation of the HTTP API execution path
 - Updated version to 0.1.19: packaging metadata corrections, repository hygiene improvements, and HTTP API test suite refactoring
+- Branch 4 (fix/error-surfacing): Improved error handling to surface runtime errors consistently
+- Replaced silent exception swallowing with explicit error handling (debug mode shows full details, normal mode shows concise warnings)
+- Updated error handling in: config loading/saving, version management, hostname parsing, JSON parsing, and API streaming
+- Added tests to verify errors are properly surfaced and not hidden
 
 Next Steps:
 - Continue monitoring for any bug reports
