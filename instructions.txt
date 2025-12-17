@@ -25,3 +25,5 @@ Did your last update warrant a version bump?  because I'm not seeing one reflect
 I don't see the version number change when I did a pipx reinstall ol, did we update or need to update that?
 ---
 @PLAN.md Proceed with Branch 5, be sure to increate versioning when done before pushing.
+---
+@PLAN.md Proceed with implementation of branch 6
