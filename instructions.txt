@@ -31,3 +31,5 @@ I don't see the version number change when I did a pipx reinstall ol, did we upd
 @PLAN.md Proceed with implementation of branch 7. Remember to bump the version before commiting so we can know what version has what information it.
 ---
 @PLAN.md Keeping the same workflow, proceed to implementation of branch 8
+---
+Proceed with Branch 9 implementation please.

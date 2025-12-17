@@ -5,6 +5,29 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.1.25] - 2025-12-17
+
+### Added
+- STDIN input support for piping and redirection
+- Users can now pipe input: `echo "text" | ol` or `cat file.txt | ol`
+- STDIN input is automatically used as prompt when no prompt argument provided
+- STDIN input is combined with prompt argument when both provided
+
+### Changed
+- CLI now detects STDIN availability using `sys.stdin.isatty()`
+- When STDIN is available (not a TTY), it's read and used as input
+- Trailing newlines from STDIN are automatically removed
+
+### Testing
+- Added comprehensive test suite (7 tests) for STDIN input support:
+  - STDIN used as prompt when no argument provided
+  - STDIN combined with prompt argument
+  - STDIN works with file arguments
+  - No STDIN read when stdin is a TTY
+  - Multiline input handling
+  - Empty input handling
+  - Trailing newline removal
+
 ## [0.1.24] - 2025-12-17
 
 ### Fixed

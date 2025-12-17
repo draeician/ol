@@ -841,6 +841,21 @@ def main(argv: Optional[Sequence[str]] = None) -> None:
             save_modelfile(args.model, args.output_dir, args.debug)
         return
 
+    # Check for STDIN input (piping/redirection)
+    stdin_input = None
+    if not sys.stdin.isatty():
+        # STDIN is available (not a TTY), read it
+        try:
+            stdin_input = sys.stdin.read()
+            if stdin_input:
+                stdin_input = stdin_input.rstrip('\n\r')  # Remove trailing newlines
+                if args.debug:
+                    print(f"DEBUG: Read {len(stdin_input)} characters from STDIN", file=sys.stderr)
+        except (IOError, OSError) as e:
+            if args.debug:
+                print(f"Warning: Failed to read from STDIN: {e}", file=sys.stderr)
+            # Continue without STDIN input
+
     # Check if the first positional argument is a file
     if args.prompt and len(args.prompt) < 255 and not '\n' in args.prompt and (Path(args.prompt).exists() or args.prompt.startswith('~')):
         # If it's a file, move it to files list and set prompt to None
@@ -849,6 +864,19 @@ def main(argv: Optional[Sequence[str]] = None) -> None:
             args.files.insert(0, expanded_path)
             args.prompt = None
 
+    # Handle STDIN input - if present, use it as prompt (or combine with existing prompt)
+    if stdin_input:
+        if args.prompt:
+            # Combine STDIN with existing prompt
+            args.prompt = f"{stdin_input}\n\n{args.prompt}"
+            if args.debug:
+                print(f"DEBUG: Combined STDIN input with prompt argument", file=sys.stderr)
+        else:
+            # Use STDIN as prompt
+            args.prompt = stdin_input
+            if args.debug:
+                print(f"DEBUG: Using STDIN input as prompt", file=sys.stderr)
+
     # Handle case where only files are provided
     if not args.prompt and args.files:
         # Use the first file to determine the model type and default prompt
@@ -856,7 +884,8 @@ def main(argv: Optional[Sequence[str]] = None) -> None:
         args.prompt = default_prompt
         if not args.model:  # If model not explicitly specified
             args.model = config.get_model_for_type(model_type)
-    elif not args.prompt and not args.files:
+    elif not args.prompt and not args.files and not stdin_input:
+        # No prompt, no files, no STDIN - show defaults
         display_defaults(config, get_env())
         sys.exit(0)
 
