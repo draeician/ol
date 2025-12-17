@@ -59,7 +59,7 @@ I’m keeping **version bump + CHANGELOG** edits isolated to the **release branc
 
 ---
 
-## Branch 3 — `test/http-api-suite`
+## Branch 3 — `test/http-api-suite` ✅ COMPLETED
 
 **Goal:** get authentic testing online for the current HTTP API execution path.
 
