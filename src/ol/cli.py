@@ -496,6 +496,27 @@ def display_defaults(config: Config, env: Dict[str, str]) -> None:
     else:
         print(f"  Last Used Model: None")
 
+def set_default_model(config: Config, model_type: str, model_name: str) -> None:
+    """
+    Set the default model for a specific type.
+    
+    Args:
+        config: Config instance to update
+        model_type: Type of model ('text' or 'vision')
+        model_name: Name of the model to set as default
+    
+    Raises:
+        SystemExit: If model_type is invalid
+    """
+    # Validate model type
+    if model_type not in ('text', 'vision'):
+        print(f"Error: Model type must be 'text' or 'vision', got '{model_type}'", file=sys.stderr)
+        sys.exit(1)
+    
+    # Set the model
+    config.set_model_for_type(model_type, model_name)
+    print(f"Default {model_type} model set to: {model_name}")
+
 def main(argv: Optional[Sequence[str]] = None) -> None:
     """Main entry point for the ol command."""
     parser = argparse.ArgumentParser(
@@ -544,6 +565,8 @@ def main(argv: Optional[Sequence[str]] = None) -> None:
                        help='Ollama host (default: localhost)')
     parser.add_argument('-p', '--port', type=int, default=None,
                        help='Ollama port (default: 11434)')
+    parser.add_argument('--set-default-model', nargs=2, metavar=('TYPE', 'MODEL'),
+                       help='Set default model for type (text or vision). Usage: --set-default-model TYPE MODEL_NAME')
     parser.add_argument('prompt', nargs='?', default=None,
                        help='Prompt to send to Ollama (optional if files are provided)')
     parser.add_argument('files', nargs='*',
@@ -562,6 +585,12 @@ def main(argv: Optional[Sequence[str]] = None) -> None:
 
     # Initialize config with debug flag
     config = Config(debug=args.debug)
+
+    # Handle set-default-model command
+    if args.set_default_model:
+        model_type, model_name = args.set_default_model
+        set_default_model(config, model_type, model_name)
+        sys.exit(0)
 
     # Handle version management commands first
     if args.version or args.check_updates or args.update:

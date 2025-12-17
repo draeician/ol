@@ -1,6 +1,6 @@
 Project Status Summary:
 
-Current Version: 0.1.16 (Stable)
+Current Version: 0.1.17 (Stable)
 
 Key Milestones:
 - Initial project setup and structure completed
@@ -37,6 +37,9 @@ Recent Changes:
 - Updated documentation with host/port usage examples
 - Added display_defaults() function to show current configuration when no arguments provided
 - Updated version to 0.1.16
+- Added --set-default-model CLI command to change default text or vision models
+- Implemented set_default_model() function with validation
+- Updated version to 0.1.17
 
 Next Steps:
 - Continue monitoring for any bug reports

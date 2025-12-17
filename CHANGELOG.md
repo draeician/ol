@@ -5,6 +5,13 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.1.17] - 2025-12-17
+
+### Added
+- `--set-default-model` CLI command to change default text or vision model
+- `set_default_model()` function with validation for model types
+- Users can now set default models without manually editing config.yaml
+
 ## [0.1.16] - 2025-12-17
 
 ### Added
