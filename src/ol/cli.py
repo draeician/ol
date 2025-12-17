@@ -467,6 +467,35 @@ def run_ollama(prompt: str, model: str = None, files: Optional[List[str]] = None
         print(f"Error running Ollama: {e}", file=sys.stderr)
         sys.exit(1)
 
+def display_defaults(config: Config, env: Dict[str, str]) -> None:
+    """
+    Display current configuration defaults.
+    
+    Args:
+        config: Config instance to retrieve model defaults
+        env: Environment variables dict (from get_env())
+    """
+    # Determine host display
+    if 'OLLAMA_HOST' in env:
+        host = env['OLLAMA_HOST']
+    else:
+        host = 'localhost:11434'
+    
+    # Get model defaults
+    text_model = config.get_model_for_type('text')
+    vision_model = config.get_model_for_type('vision')
+    last_used = config.get_last_used_model()
+    
+    # Format and print
+    print("Current Configuration:")
+    print(f"  Host: {host}")
+    print(f"  Default Text Model: {text_model}")
+    print(f"  Default Vision Model: {vision_model}")
+    if last_used:
+        print(f"  Last Used Model: {last_used}")
+    else:
+        print(f"  Last Used Model: None")
+
 def main(argv: Optional[Sequence[str]] = None) -> None:
     """Main entry point for the ol command."""
     parser = argparse.ArgumentParser(
@@ -600,8 +629,8 @@ def main(argv: Optional[Sequence[str]] = None) -> None:
         if not args.model:  # If model not explicitly specified
             args.model = config.get_model_for_type(model_type)
     elif not args.prompt and not args.files:
-        parser.print_help()
-        sys.exit(1)
+        display_defaults(config, get_env())
+        sys.exit(0)
 
     # Check for updates on normal command execution (if enabled)
     try:
