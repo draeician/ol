@@ -4,7 +4,7 @@ A Python command-line wrapper for the Ollama REPL that supports both local and r
 
 ## Prerequisites
 
-- Python 3.6 or higher
+- Python 3.7 or higher
 - Ollama installed (locally or on a remote server)
 - pipx (recommended for installation)
 
@@ -77,8 +77,8 @@ OLLAMA_HOST=http://server:11434 ol -m llama3.2 --save-modelfile
 ### Remote Vision Models
 When using vision models with a remote Ollama instance:
 - Use absolute paths for image files
-- Ensure the remote server has access to the image path
-- The image path will be included in the prompt
+- Images are base64-encoded and sent in the API payload via the `images` field
+- The image data is transmitted directly to the remote Ollama API, not as file paths
 
 ## Local Usage
 
