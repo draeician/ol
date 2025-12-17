@@ -88,7 +88,7 @@ I’m keeping **version bump + CHANGELOG** edits isolated to the **release branc
 
 ## Fix branches (after tests are enforcing reality)
 
-### Branch 4 — `fix/error-surfacing`
+### Branch 4 — `fix/error-surfacing` ✅ COMPLETED
 
 **Goal:** remove silent ignore paths; raise explicit failures or emit clear warnings (debug shows full context).
 
