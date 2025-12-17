@@ -803,10 +803,15 @@ def main(argv: Optional[Sequence[str]] = None) -> None:
                 if args.update:
                     print("\nInitiating update...")
                     try:
-                        subprocess.run(update_cmd, shell=True, check=True)
+                        # Parse command string into argument list (security: no shell execution)
+                        cmd_args = shlex.split(update_cmd)
+                        subprocess.run(cmd_args, check=True)
                         print("Update completed successfully!")
                     except subprocess.CalledProcessError as e:
                         print(f"Error during update: {e}", file=sys.stderr)
+                        sys.exit(1)
+                    except ValueError as e:
+                        print(f"Error parsing update command: {e}", file=sys.stderr)
                         sys.exit(1)
             else:
                 print("You are using the latest version.")
