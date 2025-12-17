@@ -33,3 +33,5 @@ I don't see the version number change when I did a pipx reinstall ol, did we upd
 @PLAN.md Keeping the same workflow, proceed to implementation of branch 8
 ---
 Proceed with Branch 9 implementation please.
+---
+Proceed to the final branch
