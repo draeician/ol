@@ -13,3 +13,5 @@ Add CLI flags to set the Ollama host/port, without breaking -h help. New flags: 
 Change -h from help to -host and make help --help -?
 ---
 @PLAN.md Check the plan, and start implementation of Branch 1 please.
+---
+@PLAN.md Porceed to  branch 2 implementation.  Please remember to mark the branches compelted in the PLAN.md as completed.  Mark Branc 1 complete before proceeding to branch 2.

@@ -49,6 +49,10 @@ Recent Changes:
 - Updated pyproject.toml: removed Python 3.6 classifier, updated requires-python to >=3.7
 - Fixed README.md: corrected prerequisites Python version and remote vision description (images are base64-encoded in API payload, not paths in prompt)
 - Created ainotes.md for tracking changes for future CHANGELOG entries
+- Branch 2 (chore/repo-hygiene): Removed generated artifacts from repository tracking
+- Updated .gitignore: added .pytest_cache/ to ensure all test artifacts are ignored
+- Verified that build artifacts (src/ol.egg-info/, build/, __pycache__/, .pytest_cache/) are properly ignored and not tracked in git
+- Confirmed packaging and imports still work correctly after hygiene cleanup
 
 Next Steps:
 - Continue monitoring for any bug reports
