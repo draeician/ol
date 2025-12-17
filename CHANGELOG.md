@@ -5,6 +5,15 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.1.16] - 2025-12-17
+
+### Added
+- Display current configuration defaults when no arguments are provided
+- `display_defaults()` function shows host, default text/vision models, and last used model
+
+### Changed
+- Replaced help message with defaults display when `ol` is run without arguments
+
 ## [0.1.15] - 2025-11-19
 
 ### Added
