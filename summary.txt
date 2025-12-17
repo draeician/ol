@@ -79,6 +79,13 @@ Recent Changes:
 - Ensures missing nested keys remain populated from defaults
 - Explicit user overrides win deterministically
 - Added comprehensive tests for deep merge functionality
+- Updated version to 0.1.22: deep merge configuration fix
+- Branch 7 (refactor/init-from-cli): Remove side effects on import
+- Removed initialize_ol() call from __init__.py (no longer runs on import)
+- Moved initialization to CLI execution path (main() function)
+- Importing the package no longer writes to ~/.config/ol
+- CLI invocation still initializes configuration as expected
+- Added comprehensive tests proving import is clean and CLI still initializes
 
 Next Steps:
 - Continue monitoring for any bug reports

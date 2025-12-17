@@ -5,6 +5,23 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.1.23] - 2025-12-17
+
+### Changed
+- Removed side effects on package import - importing `ol` no longer writes to `~/.config/ol`
+- Initialization now happens only when CLI is invoked, not when package is imported
+
+### Refactored
+- Moved `initialize_ol()` call from `__init__.py` to `cli.py` main() function
+- Package can now be imported without creating configuration directories
+
+### Testing
+- Added comprehensive test suite (6 tests) proving:
+  - Importing package does not create config directory
+  - Importing package does not call initialize_ol()
+  - CLI invocation still initializes configuration correctly
+  - All required directories and files are created on CLI execution
+
 ## [0.1.22] - 2025-12-17
 
 ### Fixed
