@@ -425,7 +425,21 @@ def call_ollama_api(model: str, prompt: str, temperature: float, image_files: Op
         print(f"URL: {api_url}")
         if has_images:
             print(f"Endpoint: /api/chat (images present)")
-            print(f"Payload (without images): {json.dumps({k: v if k != 'messages' else [{'role': m['role'], 'content': m['content'], 'images': f'[{len(m.get(\"images\", []))} image(s)]'} for m in v] for k, v in payload.items()}, indent=2)}")
+            # Create a simplified payload for debug output (hide image data)
+            debug_payload = {}
+            for k, v in payload.items():
+                if k == 'messages':
+                    debug_payload[k] = [
+                        {
+                            'role': m['role'],
+                            'content': m['content'],
+                            'images': f'[{len(m.get("images", []))} image(s)]'
+                        }
+                        for m in v
+                    ]
+                else:
+                    debug_payload[k] = v
+            print(f"Payload (without images): {json.dumps(debug_payload, indent=2)}")
         else:
             print(f"Endpoint: /api/generate (text-only)")
             print(f"Payload: {json.dumps(payload, indent=2)}")
