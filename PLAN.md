@@ -217,13 +217,38 @@ I’m keeping **version bump + CHANGELOG** edits isolated to the **release branc
 
 ---
 
-## Final branch — `release/0.1.21` (or next version)
+### Branch 9 — `feat/stdin-input-support`
+
+**Goal:** add STDIN input support for piping and redirection.
+
+**Cursor prompt**
+
+* Create branch `feat/stdin-input-support`.
+* Add STDIN input support so users can pipe input:
+  * `echo "text" | ol`
+  * `cat file.txt | ol`
+  * `ol < file.txt`
+* When STDIN is available (not a TTY), read from stdin and use as prompt or file content
+* Handle both text and binary input appropriately
+* If both STDIN and prompt argument are provided, STDIN should take precedence or be combined
+* Add tests proving STDIN input works correctly
+* Update `instructions.txt` / `summary.txt`.
+* **IMPORTANT REMINDERS:**
+  * **Bump version to 0.1.25 BEFORE committing**
+  * Run tests; commit: `feat: add STDIN input support`
+  * Open PR to `main`, ensure checks pass, **merge the PR**
+  * After merge, **switch back to main** and pull latest changes
+  * **Delete the local feature branch** after merge
+
+---
+
+## Final branch — `release/0.1.24` (or next version)
 
 **Goal:** versioning, changelog, final verification, tag.
 
 **Cursor prompt**
 
-* From latest `main`, create branch `release/0.1.21` (or appropriate next version).
+* From latest `main`, create branch `release/0.1.24` (or appropriate next version).
 * **Bump version in ALL required files:**
   * `src/ol/__init__.py` - Update `__version__`
   * `pyproject.toml` - Update `version` field
@@ -235,11 +260,11 @@ I’m keeping **version bump + CHANGELOG** edits isolated to the **release branc
   * Open PR to `main`, ensure checks pass, **merge the PR**
   * After merge, **switch back to main** and pull latest changes
   * **Delete the local release branch** after merge
-  * **Tag the release**: `git tag v0.1.21` (or appropriate version)
-  * **Push tags**: `git push origin v0.1.21` (or use GitHub MCP to push tags)
+  * **Tag the release**: `git tag v0.1.24` (or appropriate version)
+  * **Push tags**: `git push origin v0.1.24` (or use GitHub MCP to push tags)
   * Verify version is correct: `pipx reinstall ol` should show new version
 
 ---
 
-Reply with **`chat`** or **`generate`** for the vision endpoint choice, and I’ll lock Branch 5’s prompt to that path.
+Reply with **`chat`** or **`generate`** for the vision endpoint choice, and I'll lock Branch 5's prompt to that path.
 
