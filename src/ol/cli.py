@@ -694,6 +694,10 @@ def set_default_temperature(config: Config, model_type: str, temperature: float)
 
 def main(argv: Optional[Sequence[str]] = None) -> None:
     """Main entry point for the ol command."""
+    # Initialize configuration on CLI execution (not on import)
+    from .init import initialize_ol
+    initialize_ol()
+    
     parser = argparse.ArgumentParser(
         description='Ollama REPL wrapper',
         formatter_class=argparse.RawDescriptionHelpFormatter,
