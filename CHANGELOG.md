@@ -5,6 +5,21 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.1.22] - 2025-12-17
+
+### Fixed
+- Implemented deep merge for configuration defaults so partial configs never drop nested keys
+- Missing nested keys now remain populated from defaults when user config is partial
+- Explicit user overrides win deterministically over defaults
+
+### Changed
+- Configuration loading now uses deep merge instead of shallow merge
+- Partial user configs (e.g., only `models.text`) no longer lose other nested keys (e.g., `models.vision`)
+
+### Testing
+- Added comprehensive test suite for deep merge functionality (8 tests)
+- Tests verify nested defaults are preserved and user overrides work correctly
+
 ## [0.1.21] - 2025-12-17
 
 ### Changed
