@@ -102,6 +102,16 @@ Recent Changes:
 - Handles multiline input and removes trailing newlines
 - Added comprehensive tests for STDIN input support
 - Updated version to 0.1.25: STDIN input support
+- Release 0.1.25: Final release branch with version verification, tagging, and documentation updates
+- All feature branches (1-9) completed and merged to main
+- Version 0.1.25 includes:
+  - STDIN input support (Branch 9)
+  - Security fix for update command (Branch 8)
+  - Initialization refactor (Branch 7)
+  - Deep merge configuration fix (Branch 6)
+  - Vision/mixed content API routing (Branch 5)
+  - Host/port CLI flags (Branch 4)
+  - Modelfile save feature (Branches 1-3)
 
 Next Steps:
 - Continue monitoring for any bug reports
