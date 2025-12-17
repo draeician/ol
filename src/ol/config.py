@@ -11,6 +11,10 @@ DEFAULT_CONFIG = {
         'vision': 'llama3.2-vision',
         'last_used': None
     },
+    'temperature': {
+        'text': 0.7,
+        'vision': 0.7
+    },
     'default_prompts': {
         '.py': 'Review this Python code and provide suggestions for improvement:',
         '.js': 'Review this JavaScript code and provide suggestions for improvement:',
@@ -99,4 +103,24 @@ class Config:
     def set_model_for_type(self, type_: str, model: str) -> None:
         """Set the model for a specific type."""
         self.config['models'][type_] = model
+        self._save_config(self.config)
+
+    def get_temperature_for_type(self, type_: str = 'text') -> float:
+        """Get the temperature for the specified type."""
+        temp = self.config.get('temperature', {}).get(type_, DEFAULT_CONFIG['temperature'][type_])
+        if self.debug:
+            print(f"DEBUG: get_temperature_for_type({type_}) -> {temp}")
+        return float(temp)
+
+    def set_temperature_for_type(self, type_: str, temperature: float) -> None:
+        """Set the temperature for a specific type."""
+        # Validate temperature range
+        if not (0.0 <= temperature <= 2.0):
+            raise ValueError(f"Temperature must be between 0.0 and 2.0, got {temperature}")
+        
+        # Ensure temperature section exists
+        if 'temperature' not in self.config:
+            self.config['temperature'] = {}
+        
+        self.config['temperature'][type_] = temperature
         self._save_config(self.config) 

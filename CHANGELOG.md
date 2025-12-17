@@ -5,6 +5,20 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.1.18] - 2025-12-17
+
+### Added
+- Temperature control support for text and vision models
+- `--set-default-temperature` CLI command to set default temperature per model type
+- `--temperature` CLI option to override temperature for a single command
+- Temperature defaults stored in configuration (default: 0.7 for both text and vision)
+- `call_ollama_api()` function using Ollama HTTP API instead of subprocess for temperature support
+- Temperature displayed in default configuration output
+
+### Changed
+- Switched from subprocess `ollama run` to HTTP API calls to support temperature parameter
+- `run_ollama()` now accepts temperature parameter and uses API for all requests
+
 ## [0.1.17] - 2025-12-17
 
 ### Added

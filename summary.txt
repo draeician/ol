@@ -1,6 +1,6 @@
 Project Status Summary:
 
-Current Version: 0.1.17 (Stable)
+Current Version: 0.1.18 (Stable)
 
 Key Milestones:
 - Initial project setup and structure completed
@@ -40,6 +40,11 @@ Recent Changes:
 - Added --set-default-model CLI command to change default text or vision models
 - Implemented set_default_model() function with validation
 - Updated version to 0.1.17
+- Added temperature control support with --set-default-temperature and --temperature flags
+- Switched to Ollama HTTP API for temperature parameter support
+- Implemented call_ollama_api() function for API-based requests
+- Added temperature defaults to configuration (0.7 for text and vision)
+- Updated version to 0.1.18
 
 Next Steps:
 - Continue monitoring for any bug reports

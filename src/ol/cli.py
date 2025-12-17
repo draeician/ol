@@ -9,6 +9,7 @@ import sys
 import shlex
 import textwrap
 import socket
+import requests
 from datetime import datetime
 from pathlib import Path
 from typing import List, Optional, Sequence, Dict
@@ -343,7 +344,80 @@ def save_modelfile(model: str, out_dir: Optional[str] = None, debug: bool = Fals
         print(error_msg, file=sys.stderr)
         sys.exit(1)
 
-def run_ollama(prompt: str, model: str = None, files: Optional[List[str]] = None, debug: bool = False) -> None:
+def call_ollama_api(model: str, prompt: str, temperature: float, image_files: Optional[List[str]] = None, 
+                    text_files: Optional[List[str]] = None, env: Optional[Dict[str, str]] = None, 
+                    debug: bool = False) -> None:
+    """
+    Call Ollama API with the given parameters.
+    
+    Args:
+        model: The model to use
+        prompt: The prompt to send
+        temperature: Temperature parameter (0.0-2.0)
+        image_files: Optional list of image file paths
+        text_files: Optional list of text file paths
+        env: Environment variables dict
+        debug: Whether to show debug information
+    """
+    # Determine API endpoint
+    if env and 'OLLAMA_HOST' in env:
+        base_url = env['OLLAMA_HOST'].rstrip('/')
+    else:
+        base_url = 'http://localhost:11434'
+    
+    api_url = f"{base_url}/api/generate"
+    
+    # Prompt is already complete (includes text file contents from run_ollama)
+    # Prepare request payload
+    payload = {
+        "model": model,
+        "prompt": prompt,
+        "temperature": temperature,
+        "stream": True
+    }
+    
+    # Add images if present
+    if image_files:
+        images = []
+        for img_file in image_files:
+            with open(img_file, 'rb') as f:
+                img_data = base64.b64encode(f.read()).decode('utf-8')
+                images.append(img_data)
+        payload["images"] = images
+    
+    if debug:
+        print("\n=== API Request ===")
+        print(f"URL: {api_url}")
+        print(f"Payload (without images): {json.dumps({k: v for k, v in payload.items() if k != 'images'}, indent=2)}")
+        if image_files:
+            print(f"Images: {len(image_files)} image(s) included")
+        print()
+    
+    try:
+        # Make streaming request
+        response = requests.post(api_url, json=payload, stream=True, timeout=None)
+        response.raise_for_status()
+        
+        # Stream and print response
+        for line in response.iter_lines():
+            if line:
+                try:
+                    data = json.loads(line)
+                    if 'response' in data:
+                        print(data['response'], end='', flush=True)
+                    if data.get('done', False):
+                        break
+                except json.JSONDecodeError:
+                    continue
+        
+        print()  # Newline after response
+        
+    except requests.exceptions.RequestException as e:
+        print(f"Error calling Ollama API: {e}", file=sys.stderr)
+        sys.exit(1)
+
+def run_ollama(prompt: str, model: str = None, files: Optional[List[str]] = None, 
+               temperature: Optional[float] = None, debug: bool = False) -> None:
     """
     Run Ollama with the given prompt and optional files.
     
@@ -351,6 +425,7 @@ def run_ollama(prompt: str, model: str = None, files: Optional[List[str]] = None
         prompt: The prompt to send to Ollama
         model: The model to use (if None, will be determined from config)
         files: Optional list of files to inject into the prompt
+        temperature: Temperature to use (if None, will use default from config)
         debug: Whether to show debug information
     """
     config = Config()
@@ -380,25 +455,45 @@ def run_ollama(prompt: str, model: str = None, files: Optional[List[str]] = None
                 if debug:
                     print(f"Added text file: {file_path} ({abs_path})")
     
-    # Determine the model to use
+    # Determine the model to use and model type
+    model_type = 'text'  # default
     if model is None:
         # Clear any previous last_used model to ensure clean selection
         config.set_last_used_model(None)
         
         if image_files and not text_files:
             # Only use vision model if we have only image files
+            model_type = 'vision'
             model = config.get_model_for_type('vision')
             if debug:
                 print(f"Selected vision model for image files: {model}")
         else:
             # For text files or mixed content, always use text model
+            model_type = 'text'
             model = config.get_model_for_type('text')
             if debug:
                 print(f"Selected text model: {model}")
+    else:
+        # If model is provided, determine type based on files
+        if image_files and not text_files:
+            model_type = 'vision'
+        else:
+            model_type = 'text'
+    
+    # Determine temperature to use
+    if temperature is None:
+        temperature = config.get_temperature_for_type(model_type)
+    else:
+        # Validate provided temperature
+        if not (0.0 <= temperature <= 2.0):
+            print(f"Error: Temperature must be between 0.0 and 2.0, got {temperature}", file=sys.stderr)
+            sys.exit(1)
     
     if debug:
         print("\n=== Debug Information ===")
         print(f"Model: {model}")
+        print(f"Model Type: {model_type}")
+        print(f"Temperature: {temperature}")
         print(f"Base Prompt: {prompt}")
         print(f"Files to process: {files if files else 'None'}")
         if is_remote:
@@ -422,48 +517,24 @@ def run_ollama(prompt: str, model: str = None, files: Optional[List[str]] = None
             sys.exit(1)
 
     if debug:
-        print("\n=== Command Information ===")
-        cmd = ['ollama', 'run', model]
-        
-        if image_files and not text_files:  # Only show image command if we're only processing images
-            print("Equivalent shell command:")
-            print(f"ollama run {shlex.quote(model)} {shlex.quote(prompt)} {shlex.quote(image_files[0])}")
-        else:
-            # Show the regular command for text
-            print("Equivalent shell command:")
-            print(format_shell_command(cmd, complete_prompt, 
-                  {'OLLAMA_HOST': env['OLLAMA_HOST']} if is_remote else None))
-            print("\n=== Prompt Sequence ===")
-            print("1. User prompt:")
-            print("---")
-            print(prompt)
-            print("---")
-            if text_files:
-                print("\n2. File contents:")
-                for file_path in text_files:
-                    print(f"\nFile: {os.path.basename(file_path)}")
-                    print("---")
-                    with open(file_path, 'r') as f:
-                        print(f.read())
-                    print("---")
+        print("\n=== API Information ===")
+        print(f"Will call Ollama API with:")
+        print(f"  Model: {model}")
+        print(f"  Temperature: {temperature}")
+        print(f"  Prompt length: {len(complete_prompt)} characters")
+        if image_files:
+            print(f"  Images: {len(image_files)} image(s)")
+        if text_files:
+            print(f"  Text files: {len(text_files)} file(s)")
+        print()
 
     try:
-        if image_files and not text_files:  # Only process as image if we have only image files
-            # Pass image file directly to ollama for both local and remote
-            for img_file in image_files:
-                subprocess.run(['ollama', 'run', model, prompt, img_file],
-                            env=env,
-                            check=True)
-        else:
-            # Handle text-only input or mixed content with text model
-            subprocess.run(['ollama', 'run', model], 
-                         input=complete_prompt.encode(),
-                         env=env,
-                         check=True)
-
+        # Use API instead of subprocess
+        call_ollama_api(model, complete_prompt, temperature, image_files, text_files, env, debug)
+        
         # Only save last used model after successful execution
         config.set_last_used_model(model)
-    except subprocess.CalledProcessError as e:
+    except Exception as e:
         print(f"Error running Ollama: {e}", file=sys.stderr)
         sys.exit(1)
 
@@ -486,11 +557,17 @@ def display_defaults(config: Config, env: Dict[str, str]) -> None:
     vision_model = config.get_model_for_type('vision')
     last_used = config.get_last_used_model()
     
+    # Get temperature defaults
+    text_temp = config.get_temperature_for_type('text')
+    vision_temp = config.get_temperature_for_type('vision')
+    
     # Format and print
     print("Current Configuration:")
     print(f"  Host: {host}")
     print(f"  Default Text Model: {text_model}")
     print(f"  Default Vision Model: {vision_model}")
+    print(f"  Default Text Temperature: {text_temp}")
+    print(f"  Default Vision Temperature: {vision_temp}")
     if last_used:
         print(f"  Last Used Model: {last_used}")
     else:
@@ -516,6 +593,41 @@ def set_default_model(config: Config, model_type: str, model_name: str) -> None:
     # Set the model
     config.set_model_for_type(model_type, model_name)
     print(f"Default {model_type} model set to: {model_name}")
+
+def set_default_temperature(config: Config, model_type: str, temperature: float) -> None:
+    """
+    Set the default temperature for a specific type.
+    
+    Args:
+        config: Config instance to update
+        model_type: Type of model ('text' or 'vision')
+        temperature: Temperature value (0.0-2.0)
+    
+    Raises:
+        SystemExit: If model_type or temperature is invalid
+    """
+    # Validate model type
+    if model_type not in ('text', 'vision'):
+        print(f"Error: Model type must be 'text' or 'vision', got '{model_type}'", file=sys.stderr)
+        sys.exit(1)
+    
+    # Validate temperature
+    try:
+        temp_float = float(temperature)
+        if not (0.0 <= temp_float <= 2.0):
+            print(f"Error: Temperature must be between 0.0 and 2.0, got {temp_float}", file=sys.stderr)
+            sys.exit(1)
+    except (ValueError, TypeError):
+        print(f"Error: Temperature must be a number, got '{temperature}'", file=sys.stderr)
+        sys.exit(1)
+    
+    # Set the temperature
+    try:
+        config.set_temperature_for_type(model_type, temp_float)
+        print(f"Default {model_type} temperature set to: {temp_float}")
+    except ValueError as e:
+        print(f"Error: {e}", file=sys.stderr)
+        sys.exit(1)
 
 def main(argv: Optional[Sequence[str]] = None) -> None:
     """Main entry point for the ol command."""
@@ -567,6 +679,10 @@ def main(argv: Optional[Sequence[str]] = None) -> None:
                        help='Ollama port (default: 11434)')
     parser.add_argument('--set-default-model', nargs=2, metavar=('TYPE', 'MODEL'),
                        help='Set default model for type (text or vision). Usage: --set-default-model TYPE MODEL_NAME')
+    parser.add_argument('--set-default-temperature', nargs=2, metavar=('TYPE', 'TEMPERATURE'),
+                       help='Set default temperature for type (text or vision). Usage: --set-default-temperature TYPE TEMP')
+    parser.add_argument('--temperature', type=float,
+                       help='Temperature for this command (0.0-2.0, overrides default)')
     parser.add_argument('prompt', nargs='?', default=None,
                        help='Prompt to send to Ollama (optional if files are provided)')
     parser.add_argument('files', nargs='*',
@@ -590,6 +706,17 @@ def main(argv: Optional[Sequence[str]] = None) -> None:
     if args.set_default_model:
         model_type, model_name = args.set_default_model
         set_default_model(config, model_type, model_name)
+        sys.exit(0)
+
+    # Handle set-default-temperature command
+    if args.set_default_temperature:
+        model_type, temperature_str = args.set_default_temperature
+        try:
+            temperature = float(temperature_str)
+            set_default_temperature(config, model_type, temperature)
+        except ValueError:
+            print(f"Error: Temperature must be a number, got '{temperature_str}'", file=sys.stderr)
+            sys.exit(1)
         sys.exit(0)
 
     # Handle version management commands first
@@ -672,7 +799,7 @@ def main(argv: Optional[Sequence[str]] = None) -> None:
     except Exception:
         pass  # Silently ignore any version check errors
 
-    run_ollama(args.prompt, args.model, args.files, args.debug)
+    run_ollama(args.prompt, args.model, args.files, args.temperature, args.debug)
 
 if __name__ == '__main__':
     main() 
