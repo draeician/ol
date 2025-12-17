@@ -5,6 +5,21 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.1.19] - 2025-12-17
+
+### Changed
+- Updated Python version requirement from 3.6+ to 3.7+ to match actual dependency requirements
+- Updated test suite to validate HTTP API streaming execution path instead of subprocess calls
+
+### Fixed
+- Corrected README documentation: remote vision description now accurately reflects that images are base64-encoded in API payload
+- Repository hygiene: added `.pytest_cache/` to `.gitignore` to prevent tracking of test artifacts
+
+### Testing
+- Refactored tests to mock `requests.post` instead of `subprocess.run` for API calls
+- Added comprehensive test assertions for endpoint URL, temperature parameter, images field behavior, and streaming output
+- Tests now provide authentic validation of the HTTP API execution path
+
 ## [0.1.18] - 2025-12-17
 
 ### Added
