@@ -217,7 +217,7 @@ I’m keeping **version bump + CHANGELOG** edits isolated to the **release branc
 
 ---
 
-### Branch 9 — `feat/stdin-input-support`
+### Branch 9 — `feat/stdin-input-support` ✅ COMPLETED
 
 **Goal:** add STDIN input support for piping and redirection.
 
