@@ -71,6 +71,14 @@ Recent Changes:
 - Updated tests to verify endpoint routing and payload structure for both endpoints
 - No silent fallbacks: explicit errors if /api/chat fails (revert strategy if issues arise)
 - Isolated change for easy rollback if needed
+- Fixed chat API response format parsing (message.content vs response field)
+- Updated version to 0.1.21: vision/mixed-content routing through /api/chat
+- Branch 6 (fix/config-deep-merge): Implement deep merge for configuration defaults
+- Added deep_merge() function to recursively merge nested dictionaries
+- Updated _load_config() to use deep merge instead of shallow merge
+- Ensures missing nested keys remain populated from defaults
+- Explicit user overrides win deterministically
+- Added comprehensive tests for deep merge functionality
 
 Next Steps:
 - Continue monitoring for any bug reports

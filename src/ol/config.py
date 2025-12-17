@@ -5,6 +5,34 @@ import yaml
 from pathlib import Path
 from typing import Dict, Optional, Any
 
+
+def deep_merge(defaults: Dict[str, Any], overrides: Dict[str, Any]) -> Dict[str, Any]:
+    """
+    Deep merge two dictionaries, with overrides taking precedence.
+    
+    Recursively merges nested dictionaries, so that:
+    - Missing nested keys remain populated from defaults
+    - Explicit user overrides win deterministically
+    
+    Args:
+        defaults: The default dictionary (base)
+        overrides: The dictionary with overrides (takes precedence)
+    
+    Returns:
+        A new dictionary with deep-merged values
+    """
+    result = defaults.copy()
+    
+    for key, value in overrides.items():
+        if key in result and isinstance(result[key], dict) and isinstance(value, dict):
+            # Recursively merge nested dictionaries
+            result[key] = deep_merge(result[key], value)
+        else:
+            # Override with user value (or add new key)
+            result[key] = value
+    
+    return result
+
 DEFAULT_CONFIG = {
     'models': {
         'text': 'llama3.2',
@@ -53,9 +81,8 @@ class Config:
         try:
             with open(self.config_file, 'r') as f:
                 config = yaml.safe_load(f) or {}
-                # Merge with defaults to ensure all keys exist
-                merged = DEFAULT_CONFIG.copy()
-                merged.update(config)
+                # Deep merge with defaults to ensure all nested keys exist
+                merged = deep_merge(DEFAULT_CONFIG, config)
                 return merged
         except Exception as e:
             if self.debug:
