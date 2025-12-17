@@ -171,7 +171,11 @@ I’m keeping **version bump + CHANGELOG** edits isolated to the **release branc
   * explicit user overrides win deterministically
 * Update `instructions.txt` / `summary.txt`.
 * Run tests; commit: `fix: deep-merge configuration defaults`
-* PR → checks → merge.
+* **IMPORTANT REMINDERS:**
+  * Open PR to `main`, ensure checks pass, **merge the PR**
+  * After merge, **switch back to main** and pull latest changes
+  * **Delete the local feature branch** after merge
+  * **Update version numbers** if this is a release (see release branch instructions)
 
 ---
 
@@ -186,7 +190,11 @@ I’m keeping **version bump + CHANGELOG** edits isolated to the **release branc
 * Add tests proving import is clean, while CLI invocation still initializes.
 * Update `instructions.txt` / `summary.txt`.
 * Run tests; commit: `refactor: move initialization to CLI execution`
-* PR → checks → merge.
+* **IMPORTANT REMINDERS:**
+  * Open PR to `main`, ensure checks pass, **merge the PR**
+  * After merge, **switch back to main** and pull latest changes
+  * **Delete the local feature branch** after merge
+  * **Update version numbers** if this is a release (see release branch instructions)
 
 ---
 
@@ -201,26 +209,35 @@ I’m keeping **version bump + CHANGELOG** edits isolated to the **release branc
 * Add tests validating invocation and failure surfacing.
 * Update `instructions.txt` / `summary.txt`.
 * Run tests; commit: `fix: execute update command without shell`
-* PR → checks → merge.
+* **IMPORTANT REMINDERS:**
+  * Open PR to `main`, ensure checks pass, **merge the PR**
+  * After merge, **switch back to main** and pull latest changes
+  * **Delete the local feature branch** after merge
+  * **Update version numbers** if this is a release (see release branch instructions)
 
 ---
 
-## Final branch — `release/0.1.19`
+## Final branch — `release/0.1.21` (or next version)
 
 **Goal:** versioning, changelog, final verification, tag.
 
 **Cursor prompt**
 
-* From latest `main`, create branch `release/0.1.19`.
-* Bump version to `0.1.19` in:
-
-  * `src/ol/__init__.py`
-  * `pyproject.toml`
-* Update `CHANGELOG.md` with a complete `0.1.19` section capturing merged PRs.
+* From latest `main`, create branch `release/0.1.21` (or appropriate next version).
+* **Bump version in ALL required files:**
+  * `src/ol/__init__.py` - Update `__version__`
+  * `pyproject.toml` - Update `version` field
+* Update `CHANGELOG.md` with a complete version section capturing all merged PRs since last release.
 * Update `summary.txt` and append prompt to `instructions.txt`.
 * Run full tests (pipx venv command), verify green.
-* PR → checks → merge.
-* Tag `v0.1.19` and push tags (GitHub MCP).
+* **IMPORTANT REMINDERS:**
+  * **Commit all changes** with appropriate commit message
+  * Open PR to `main`, ensure checks pass, **merge the PR**
+  * After merge, **switch back to main** and pull latest changes
+  * **Delete the local release branch** after merge
+  * **Tag the release**: `git tag v0.1.21` (or appropriate version)
+  * **Push tags**: `git push origin v0.1.21` (or use GitHub MCP to push tags)
+  * Verify version is correct: `pipx reinstall ol` should show new version
 
 ---
 
