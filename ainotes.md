@@ -103,3 +103,67 @@ Test suite now validates HTTP API streaming execution path instead of subprocess
 ### Notes for CHANGELOG
 This change improves observability by ensuring all runtime errors are visible to users. Debug mode provides full diagnostic information, while normal mode provides concise warnings that don't overwhelm the output.
 
+## Branch 5: Vision/Mixed Contract (fix/vision-mixed-contract)
+
+### Changes Made
+
+#### Endpoint Routing
+- **Image requests**: Now route to `/api/chat` endpoint
+- **Text-only requests**: Continue using `/api/generate` endpoint
+- **No silent fallbacks**: If `/api/chat` fails, an explicit error is raised (no automatic fallback to `/api/generate`)
+
+#### Payload Contract
+
+**Text-only requests (`/api/generate`):**
+- Endpoint: `{base_url}/api/generate`
+- Payload format:
+  ```json
+  {
+    "model": "model_name",
+    "prompt": "text prompt",
+    "temperature": 0.7,
+    "stream": true
+  }
+  ```
+- **Contract**: No `images` field in payload
+- **Contract**: No `messages` field in payload
+
+**Image requests (`/api/chat`):**
+- Endpoint: `{base_url}/api/chat`
+- Payload format:
+  ```json
+  {
+    "model": "model_name",
+    "messages": [
+      {
+        "role": "user",
+        "content": "text prompt",
+        "images": ["base64_image1", "base64_image2"]
+      }
+    ],
+    "temperature": 0.7,
+    "stream": true
+  }
+  ```
+- **Contract**: Always use `/api/chat` when any images are present
+- **Contract**: Images are included in the `messages[0].images` array
+- **Contract**: No `prompt` field in payload (uses `messages[].content` instead)
+
+#### Test Updates
+- Added tests to verify endpoint routing:
+  - Text-only requests → `/api/generate`
+  - Image requests → `/api/chat`
+- Added tests to verify payload structure:
+  - Text-only: `prompt` field, no `images`, no `messages`
+  - Image requests: `messages` array with `images`, no `prompt` field
+- Tests fail if routing logic breaks (guardrails)
+
+#### Design Decisions
+- **Why `/api/chat` for images?**: The chat API provides better support for multimodal content (text + images) in a structured format
+- **No fallback strategy**: Explicit errors are preferred over silent fallbacks. If `/api/chat` causes issues, the entire PR can be reverted cleanly rather than adding hidden fallback logic
+- **Isolated change**: This change is isolated to the `call_ollama_api()` function, making it easy to revert if needed
+- **Backward compatibility**: Text-only requests continue to work exactly as before
+
+### Notes for CHANGELOG
+Vision and mixed-content requests now route through `/api/chat` endpoint with a strict payload contract. Text-only requests continue using `/api/generate`. This change improves support for multimodal content while maintaining backward compatibility for text-only usage.
+

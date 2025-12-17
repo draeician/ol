@@ -64,6 +64,13 @@ Recent Changes:
 - Updated error handling in: config loading/saving, version management, hostname parsing, JSON parsing, and API streaming
 - Added tests to verify errors are properly surfaced and not hidden
 - Updated version to 0.1.20: error handling improvements
+- Branch 5 (fix/vision-mixed-contract): Route vision and mixed-content requests through /api/chat endpoint
+- Modified call_ollama_api() to route image requests to /api/chat with messages array payload format
+- Text-only requests continue using /api/generate endpoint with prompt field
+- Enforced strict payload contract: text-only has no images field, image requests always use /api/chat
+- Updated tests to verify endpoint routing and payload structure for both endpoints
+- No silent fallbacks: explicit errors if /api/chat fails (revert strategy if issues arise)
+- Isolated change for easy rollback if needed
 
 Next Steps:
 - Continue monitoring for any bug reports

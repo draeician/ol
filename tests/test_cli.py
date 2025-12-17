@@ -31,7 +31,7 @@ def test_list_models(mocker):
     mock_run.assert_called_once_with(['ollama', 'list'], env=mocker.ANY, check=True)
 
 def test_run_with_model(mocker, capsys):
-    """Test running with a specific model via HTTP API."""
+    """Test running with a specific model via HTTP API (text-only uses /api/generate)."""
     mock_response = MagicMock()
     mock_response.iter_lines.return_value = create_mock_streaming_response("Hello", done=True)
     mock_response.raise_for_status = MagicMock()
@@ -44,16 +44,17 @@ def test_run_with_model(mocker, capsys):
     assert mock_post.called
     call_args = mock_post.call_args
     
-    # Verify endpoint URL
+    # Verify endpoint URL (text-only should use /api/generate)
     assert call_args[0][0] == 'http://localhost:11434/api/generate'
     
-    # Verify payload
+    # Verify payload structure for /api/generate
     payload = call_args[1]['json']
     assert payload['model'] == 'codellama'
     assert payload['prompt'] == 'test prompt'
     assert payload['temperature'] == 0.7  # default temperature
     assert payload['stream'] is True
     assert 'images' not in payload
+    assert 'messages' not in payload  # Chat format should not be used
     
     # Verify output was printed
     captured = capsys.readouterr()
@@ -144,35 +145,40 @@ def test_model_selection_for_file_types(mocker, tmp_path, capsys):
     
     mock_post = mocker.patch('requests.post', return_value=mock_response)
     
-    # Test text file
+    # Test text file (should use /api/generate)
     text_file = tmp_path / "test.txt"
     text_file.write_text("content")
     main(['-m', 'llama2', 'test', str(text_file)])
     
-    # Verify API was called with text model
+    # Verify API was called with text model using /api/generate
     assert mock_post.called
     call_args = mock_post.call_args
+    assert call_args[0][0] == 'http://localhost:11434/api/generate'
     payload = call_args[1]['json']
     assert payload['model'] == 'llama2'
     assert 'images' not in payload
+    assert 'prompt' in payload
+    assert 'messages' not in payload
     
-    # Test image file
+    # Test image file (should use /api/chat)
     image_file = tmp_path / "test.jpg"
     image_file.write_bytes(b'fake_image_data')
     mock_post.reset_mock()
     
     main(['-m', 'llava', 'test', str(image_file)])
     
-    # Verify API was called with image
+    # Verify API was called with /api/chat endpoint
     assert mock_post.called
     call_args = mock_post.call_args
+    assert call_args[0][0] == 'http://localhost:11434/api/chat'
     payload = call_args[1]['json']
     assert payload['model'] == 'llava'
-    assert 'images' in payload
-    assert len(payload['images']) == 1
+    assert 'messages' in payload
+    assert 'images' in payload['messages'][0]
+    assert len(payload['messages'][0]['images']) == 1
     # Verify image is base64 encoded
-    assert isinstance(payload['images'][0], str)
-    assert len(payload['images'][0]) > 0
+    assert isinstance(payload['messages'][0]['images'][0], str)
+    assert len(payload['messages'][0]['images'][0]) > 0
 
 def test_default_prompts(mocker, tmp_path, capsys):
     """Test default prompt selection for different file types via HTTP API."""
@@ -232,7 +238,7 @@ def test_ollama_host_handling(mocker, capsys):
 
 # Image Processing Tests
 def test_image_processing_local(mocker, tmp_path, capsys):
-    """Test handling of local image files via HTTP API."""
+    """Test handling of local image files via HTTP API (uses /api/chat)."""
     mock_response = MagicMock()
     mock_response.iter_lines.return_value = create_mock_streaming_response("Response", done=True)
     mock_response.raise_for_status = MagicMock()
@@ -246,19 +252,32 @@ def test_image_processing_local(mocker, tmp_path, capsys):
     with patch.dict(os.environ, {}, clear=True):
         main(['-m', 'llava', 'describe', str(image_file)])
     
-    # Verify API was called with image
+    # Verify API was called with /api/chat endpoint (images present)
     assert mock_post.called
     call_args = mock_post.call_args
-    assert call_args[0][0] == 'http://localhost:11434/api/generate'
+    assert call_args[0][0] == 'http://localhost:11434/api/chat'
+    
+    # Verify chat payload structure
     payload = call_args[1]['json']
-    assert 'images' in payload
-    assert len(payload['images']) == 1
+    assert payload['model'] == 'llava'
+    assert 'messages' in payload
+    assert len(payload['messages']) == 1
+    assert payload['messages'][0]['role'] == 'user'
+    assert payload['messages'][0]['content'] == 'describe'
+    assert 'images' in payload['messages'][0]
+    assert len(payload['messages'][0]['images']) == 1
+    assert payload['temperature'] == 0.7
+    assert payload['stream'] is True
+    
     # Verify image is base64 encoded
-    decoded = base64.b64decode(payload['images'][0])
+    decoded = base64.b64decode(payload['messages'][0]['images'][0])
     assert decoded == b'fake_image_data'
+    
+    # Verify /api/generate format is NOT used
+    assert 'prompt' not in payload
 
 def test_image_processing_remote(mocker, tmp_path, capsys):
-    """Test handling of remote image files via HTTP API."""
+    """Test handling of remote image files via HTTP API (uses /api/chat)."""
     mock_response = MagicMock()
     mock_response.iter_lines.return_value = create_mock_streaming_response("Response", done=True)
     mock_response.raise_for_status = MagicMock()
@@ -271,15 +290,20 @@ def test_image_processing_remote(mocker, tmp_path, capsys):
         
         main(['-m', 'llava', 'describe', str(image_file)])
         
-        # Verify endpoint URL uses OLLAMA_HOST
+        # Verify endpoint URL uses /api/chat (images present)
         call_args = mock_post.call_args
-        assert call_args[0][0] == 'http://test:11434/api/generate'
+        assert call_args[0][0] == 'http://test:11434/api/chat'
+        
+        # Verify chat payload structure
         payload = call_args[1]['json']
-        assert 'images' in payload
-        assert len(payload['images']) == 1
+        assert 'messages' in payload
+        assert len(payload['messages']) == 1
+        assert 'images' in payload['messages'][0]
+        assert len(payload['messages'][0]['images']) == 1
+        assert 'prompt' not in payload  # Chat format, not generate format
 
 def test_mixed_content(mocker, tmp_path, capsys):
-    """Test handling of mixed content (images + text) via HTTP API."""
+    """Test handling of mixed content (images + text) via HTTP API (uses /api/chat)."""
     mock_response = MagicMock()
     mock_response.iter_lines.return_value = create_mock_streaming_response("Response", done=True)
     mock_response.raise_for_status = MagicMock()
@@ -293,13 +317,22 @@ def test_mixed_content(mocker, tmp_path, capsys):
     
     main(['-m', 'llama2', 'test', str(text_file), str(image_file)])
     
-    # Should include both text content and images
+    # Should use /api/chat endpoint (images present)
     assert mock_post.called
     call_args = mock_post.call_args
+    assert call_args[0][0] == 'http://localhost:11434/api/chat'
+    
+    # Verify chat payload structure with mixed content
     payload = call_args[1]['json']
-    assert 'content' in payload['prompt']  # Text file content in prompt
-    assert 'images' in payload  # Images in payload
-    assert len(payload['images']) == 1
+    assert 'messages' in payload
+    assert len(payload['messages']) == 1
+    assert payload['messages'][0]['role'] == 'user'
+    # Text file content should be in the message content
+    assert 'content' in payload['messages'][0]['content']
+    # Images should be in the message
+    assert 'images' in payload['messages'][0]
+    assert len(payload['messages'][0]['images']) == 1
+    assert 'prompt' not in payload  # Chat format, not generate format
 
 # Input Processing Tests
 def test_multiple_files(mocker, tmp_path, capsys):
@@ -453,12 +486,13 @@ def test_streaming_output(mocker, capsys):
     captured = capsys.readouterr()
     assert 'Hello world!' in captured.out
     
-    # Verify API was called with stream=True
+    # Verify API was called with /api/generate (text-only)
     call_args = mock_post.call_args
+    assert call_args[0][0] == 'http://localhost:11434/api/generate'
     assert call_args[1]['json']['stream'] is True
 
 def test_no_images_in_text_only_request(mocker, capsys):
-    """Test that images field is not included in text-only requests."""
+    """Test that text-only requests use /api/generate and have no images field."""
     mock_response = MagicMock()
     mock_response.iter_lines.return_value = create_mock_streaming_response("Response", done=True)
     mock_response.raise_for_status = MagicMock()
@@ -468,11 +502,16 @@ def test_no_images_in_text_only_request(mocker, capsys):
     main(['-m', 'llama3.2', 'test prompt'])
     
     call_args = mock_post.call_args
+    # Verify /api/generate endpoint is used
+    assert call_args[0][0] == 'http://localhost:11434/api/generate'
     payload = call_args[1]['json']
+    # Verify generate format (prompt field, not messages)
+    assert 'prompt' in payload
+    assert 'messages' not in payload
     assert 'images' not in payload
 
 def test_images_in_vision_request(mocker, tmp_path, capsys):
-    """Test that images field is included in vision requests."""
+    """Test that vision requests use /api/chat with images in messages."""
     mock_response = MagicMock()
     mock_response.iter_lines.return_value = create_mock_streaming_response("Response", done=True)
     mock_response.raise_for_status = MagicMock()
@@ -485,10 +524,16 @@ def test_images_in_vision_request(mocker, tmp_path, capsys):
     main(['-m', 'llava', 'describe', str(image_file)])
     
     call_args = mock_post.call_args
+    # Verify /api/chat endpoint is used
+    assert call_args[0][0] == 'http://localhost:11434/api/chat'
     payload = call_args[1]['json']
-    assert 'images' in payload
-    assert len(payload['images']) == 1
-    assert isinstance(payload['images'][0], str)  # base64 encoded string
+    # Verify chat format (messages array)
+    assert 'messages' in payload
+    assert len(payload['messages']) == 1
+    assert 'images' in payload['messages'][0]
+    assert len(payload['messages'][0]['images']) == 1
+    assert isinstance(payload['messages'][0]['images'][0], str)  # base64 encoded string
+    assert 'prompt' not in payload  # Chat format, not generate format
 
 # Keep subprocess tests for ollama list and ollama show --modelfile
 def test_save_modelfile_success(mocker, tmp_path, monkeypatch):
@@ -929,6 +974,45 @@ def test_help_still_works(capsys):
         main(['-?'])
     captured = capsys.readouterr()
     assert 'Ollama REPL wrapper' in captured.out
+
+def test_endpoint_routing_text_only_uses_generate(mocker, capsys):
+    """Test that text-only requests always use /api/generate endpoint."""
+    mock_response = MagicMock()
+    mock_response.iter_lines.return_value = create_mock_streaming_response("Response", done=True)
+    mock_response.raise_for_status = MagicMock()
+    
+    mock_post = mocker.patch('requests.post', return_value=mock_response)
+    
+    # Text-only request
+    main(['-m', 'llama3.2', 'test prompt'])
+    
+    call_args = mock_post.call_args
+    assert call_args[0][0] == 'http://localhost:11434/api/generate'
+    payload = call_args[1]['json']
+    assert 'prompt' in payload
+    assert 'messages' not in payload
+    assert 'images' not in payload
+
+def test_endpoint_routing_images_use_chat(mocker, tmp_path, capsys):
+    """Test that requests with images always use /api/chat endpoint."""
+    mock_response = MagicMock()
+    mock_response.iter_lines.return_value = create_mock_streaming_response("Response", done=True)
+    mock_response.raise_for_status = MagicMock()
+    
+    mock_post = mocker.patch('requests.post', return_value=mock_response)
+    
+    image_file = tmp_path / "test.jpg"
+    image_file.write_bytes(b'fake_image_data')
+    
+    # Image request
+    main(['-m', 'llava', 'describe', str(image_file)])
+    
+    call_args = mock_post.call_args
+    assert call_args[0][0] == 'http://localhost:11434/api/chat'
+    payload = call_args[1]['json']
+    assert 'messages' in payload
+    assert 'images' in payload['messages'][0]
+    assert 'prompt' not in payload
 
 def test_save_modelfile_uses_ollama_host_hostname(mocker, tmp_path, monkeypatch):
     """Test that save_modelfile uses hostname from OLLAMA_HOST when set."""
