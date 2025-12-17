@@ -493,10 +493,8 @@ def run_ollama(prompt: str, model: str = None, files: Optional[List[str]] = None
         debug: Whether to show debug information
     """
     config = Config()
-    env = get_env()
-    is_remote = 'OLLAMA_HOST' in env
     
-    # Process files first to determine their types
+    # Process files first to determine their types (needed to determine model type)
     image_files = []
     text_files = []
     
@@ -545,6 +543,7 @@ def run_ollama(prompt: str, model: str = None, files: Optional[List[str]] = None
             model_type = 'text'
     
     # Check if model type has a configured host, and use it if no CLI flags were provided
+    # This must happen BEFORE get_env() is called
     if not cli_host_provided:
         config_host = config.get_host_for_type(model_type)
         if config_host:
@@ -552,6 +551,10 @@ def run_ollama(prompt: str, model: str = None, files: Optional[List[str]] = None
             os.environ['OLLAMA_HOST'] = config_host
             if debug:
                 print(f"Using configured host for {model_type} model: {config_host}")
+    
+    # Now get the environment (which will include the config host if set)
+    env = get_env()
+    is_remote = 'OLLAMA_HOST' in env
     
     # Determine temperature to use
     if temperature is None:
