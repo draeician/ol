@@ -11,3 +11,5 @@ Fixed FileNotFoundError when saving Modelfiles for models with path-hostile char
 Add CLI flags to set the Ollama host/port, without breaking -h help. New flags: -H/--host (default "localhost") and -p/--port (default 11434). These override OLLAMA_HOST for the current command. Keep -h for help. Do NOT use -h for host.
 ---
 Change -h from help to -host and make help --help -?
+---
+@PLAN.md Check the plan, and start implementation of Branch 1 please.

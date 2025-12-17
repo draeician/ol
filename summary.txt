@@ -45,6 +45,10 @@ Recent Changes:
 - Implemented call_ollama_api() function for API-based requests
 - Added temperature defaults to configuration (0.7 for text and vision)
 - Updated version to 0.1.18
+- Branch 1 (chore/packaging-docs-metadata): Corrected Python version requirement from 3.6+ to 3.7+ to match actual dependency requirements (packaging>=23.0, gitpython>=3.1.0 require Python 3.7+)
+- Updated pyproject.toml: removed Python 3.6 classifier, updated requires-python to >=3.7
+- Fixed README.md: corrected prerequisites Python version and remote vision description (images are base64-encoded in API payload, not paths in prompt)
+- Created ainotes.md for tracking changes for future CHANGELOG entries
 
 Next Steps:
 - Continue monitoring for any bug reports
