@@ -5,6 +5,22 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.1.21] - 2025-12-17
+
+### Changed
+- Vision and mixed-content requests now route through `/api/chat` endpoint instead of `/api/generate`
+- Image requests use chat API payload format with `messages` array containing images
+- Text-only requests continue using `/api/generate` endpoint with `prompt` field
+
+### Fixed
+- Improved support for multimodal content (text + images) by using structured chat API format
+- Enforced strict payload contract: text-only requests have no `images` field, image requests always use `/api/chat`
+
+### Testing
+- Added tests to verify endpoint routing: text-only → `/api/generate`, image requests → `/api/chat`
+- Added tests to verify payload structure for both endpoints
+- Tests fail if routing logic breaks (guardrails)
+
 ## [0.1.20] - 2025-12-17
 
 ### Fixed

@@ -361,6 +361,8 @@ def call_ollama_api(model: str, prompt: str, temperature: float, image_files: Op
     """
     Call Ollama API with the given parameters.
     
+    Routes image requests to /api/chat, text-only requests to /api/generate.
+    
     Args:
         model: The model to use
         prompt: The prompt to send
@@ -376,30 +378,71 @@ def call_ollama_api(model: str, prompt: str, temperature: float, image_files: Op
     else:
         base_url = 'http://localhost:11434'
     
-    api_url = f"{base_url}/api/generate"
+    # Route to /api/chat if images are present, otherwise use /api/generate
+    has_images = image_files and len(image_files) > 0
     
-    # Prompt is already complete (includes text file contents from run_ollama)
-    # Prepare request payload
-    payload = {
-        "model": model,
-        "prompt": prompt,
-        "temperature": temperature,
-        "stream": True
-    }
-    
-    # Add images if present
-    if image_files:
+    if has_images:
+        # Use /api/chat for image requests
+        api_url = f"{base_url}/api/chat"
+        
+        # Build images array
         images = []
         for img_file in image_files:
             with open(img_file, 'rb') as f:
                 img_data = base64.b64encode(f.read()).decode('utf-8')
                 images.append(img_data)
-        payload["images"] = images
+        
+        # Chat API uses messages array format
+        payload = {
+            "model": model,
+            "messages": [
+                {
+                    "role": "user",
+                    "content": prompt,
+                    "images": images
+                }
+            ],
+            "temperature": temperature,
+            "stream": True
+        }
+    else:
+        # Use /api/generate for text-only requests
+        api_url = f"{base_url}/api/generate"
+        
+        # Prompt is already complete (includes text file contents from run_ollama)
+        payload = {
+            "model": model,
+            "prompt": prompt,
+            "temperature": temperature,
+            "stream": True
+        }
+        # Ensure images field is NOT included for text-only requests
+        if 'images' in payload:
+            del payload['images']
     
     if debug:
         print("\n=== API Request ===")
         print(f"URL: {api_url}")
-        print(f"Payload (without images): {json.dumps({k: v for k, v in payload.items() if k != 'images'}, indent=2)}")
+        if has_images:
+            print(f"Endpoint: /api/chat (images present)")
+            # Create a simplified payload for debug output (hide image data)
+            debug_payload = {}
+            for k, v in payload.items():
+                if k == 'messages':
+                    debug_payload[k] = [
+                        {
+                            'role': m['role'],
+                            'content': m['content'],
+                            'images': f'[{len(m.get("images", []))} image(s)]'
+                        }
+                        for m in v
+                    ]
+                else:
+                    debug_payload[k] = v
+            print(f"Payload (without images): {json.dumps(debug_payload, indent=2)}")
+        else:
+            print(f"Endpoint: /api/generate (text-only)")
+            print(f"Payload: {json.dumps(payload, indent=2)}")
         if image_files:
             print(f"Images: {len(image_files)} image(s) included")
         print()
