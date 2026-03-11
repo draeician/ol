@@ -77,6 +77,7 @@ OLLAMA_HOST=http://server:11434 ol [options] "PROMPT" [FILES...]
   - JSON (.json)
   - YAML (.yaml)
   - Images (.jpg, .png, .gif)
+  - PDFs (.pdf) with text extraction via `pypdf`
 - Special handling for remote vision models
 
 ## Installation
@@ -217,10 +218,11 @@ Options:
   -l, --list                      List available models
   -m, --model MODEL               Model to use (default: from config)
   -d, --debug                     Show debug information including API request details
-  -h, --host HOST                 Ollama host (default: localhost)
-  -p, --port PORT                 Ollama port (default: 11434)
+  -h, --host HOST                 Ollama host (default: localhost). Overrides OLLAMA_HOST and configured hosts for this command.
+  -p, --port PORT                 Ollama port (default: 11434). Overrides OLLAMA_HOST and configured hosts for this command.
   --set-default-model TYPE MODEL  Set default model for type (text or vision)
   --set-default-temperature TYPE TEMP  Set default temperature for type (text or vision)
+  --set-default-host TYPE HOST    Set default host for type (text or vision). CLI flags -h/-p override configured hosts.
   --temperature TEMP              Temperature for this command (0.0-2.0)
   --save-modelfile                Download and save the Modelfile for the specified model
   -a, --all                       Save Modelfiles for all models (requires --save-modelfile)
@@ -241,6 +243,10 @@ models:
   vision: llama3.2-vision  # Default model for images
   last_used: null          # Last used model (updated automatically)
 
+hosts:
+  text: null              # Default host for text models (null = use OLLAMA_HOST or localhost)
+  vision: null            # Default host for vision models (null = use OLLAMA_HOST or localhost)
+
 temperature:
   text: 0.7    # Default temperature for text models (0.0-2.0)
   vision: 0.7  # Default temperature for vision models (0.0-2.0)
@@ -255,6 +261,7 @@ default_prompts:
   .jpg: 'What do you see in this image?'
   .png: 'What do you see in this image?'
   .gif: 'What do you see in this image?'
+  .pdf: 'Please summarize or extract the key points from this PDF document:'
 ```
 
 ## Future Considerations

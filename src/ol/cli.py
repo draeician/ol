@@ -832,7 +832,7 @@ def main(argv: Optional[Sequence[str]] = None) -> None:
     parser.add_argument('-m', '--model', 
                        help='Model to use (default: from config). Vision models need absolute paths for remote.')
     parser.add_argument('-d', '--debug', action='store_true',
-                       help='Show debug information including equivalent shell commands')
+                       help='Show debug information including API request details and equivalent shell commands')
     parser.add_argument('--save-modelfile', action='store_true',
                        help='Download and save the Modelfile for the specified model')
     parser.add_argument('-a', '--all', action='store_true',
@@ -840,9 +840,9 @@ def main(argv: Optional[Sequence[str]] = None) -> None:
     parser.add_argument('--output-dir', 
                        help='Output directory for saved Modelfile (default: current working directory)')
     parser.add_argument('-h', '--host', default=None,
-                       help='Ollama host (default: localhost)')
+                       help='Ollama host (default: localhost). Overrides OLLAMA_HOST and configured hosts for this command.')
     parser.add_argument('-p', '--port', type=int, default=None,
-                       help='Ollama port (default: 11434)')
+                       help='Ollama port (default: 11434). Overrides OLLAMA_HOST and configured hosts for this command.')
     parser.add_argument('--set-default-model', nargs=2, metavar=('TYPE', 'MODEL'),
                        help='Set default model for type (text or vision). Usage: --set-default-model TYPE MODEL_NAME')
     parser.add_argument('--set-default-temperature', nargs=2, metavar=('TYPE', 'TEMPERATURE'),
@@ -854,7 +854,7 @@ def main(argv: Optional[Sequence[str]] = None) -> None:
     parser.add_argument('prompt', nargs='?', default=None,
                        help='Prompt to send to Ollama (optional if files are provided)')
     parser.add_argument('files', nargs='*',
-                       help='Files to inject into the prompt. For remote vision models, use absolute paths.')
+                       help='Files to inject into the prompt (text/code, PDFs, images). PDFs are summarized via text extraction; for remote vision models, use absolute image paths.')
 
     args = parser.parse_args(argv)
 

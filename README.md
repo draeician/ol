@@ -123,6 +123,7 @@ ol -m llama3.2:latest --save-modelfile --output-dir ~/.config/ol/templates
 - `-p PORT, --port PORT`: Ollama port (default: 11434). Overrides OLLAMA_HOST for this command.
 - `--set-default-model TYPE MODEL`: Set default model for type (text or vision). Usage: `--set-default-model text codellama`
 - `--set-default-temperature TYPE TEMP`: Set default temperature for type (text or vision). Usage: `--set-default-temperature text 0.8`
+- `--set-default-host TYPE HOST`: Set default host for type (text or vision). Usage: `--set-default-host text http://server:11434`. CLI flags (`-h`/`-p`) override configured hosts for individual commands.
 - `--temperature TEMP`: Temperature for this command (0.0-2.0, overrides default)
 - `--save-modelfile`: Download and save the Modelfile for the specified model
 - `-a, --all`: Save Modelfiles for all models (requires --save-modelfile)
@@ -268,6 +269,24 @@ EOF
 ```
 
 **Note**: When STDIN is available (piping/redirection), it's automatically used as the prompt. If both STDIN and a prompt argument are provided, STDIN is combined with the prompt argument.
+
+### PDF Text Extraction
+
+`ol` includes native PDF text extraction using `pypdf`:
+
+- `.pdf` files are treated as text sources: their extracted text is appended into the prompt, just like `.txt` or `.md` files.
+- If a PDF is encrypted or contains only images (for example, a scanned document) and no extractable text, `ol` prints a clear warning to `stderr` and skips that file while continuing with the rest.
+- When PDFs are combined with images, PDFs contribute text to the prompt, and any image files still trigger the vision `/api/chat` route as needed.
+
+Examples:
+
+```bash
+# Summarize a PDF document
+ol doc.pdf
+
+# Extract key points from multiple PDFs and text files
+ol "Summarize these" report.pdf notes.txt
+```
 
 ### Image Analysis
 

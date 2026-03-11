@@ -266,5 +266,23 @@ I’m keeping **version bump + CHANGELOG** edits isolated to the **release branc
 
 ---
 
+## Branch 10 — `feat/pdf-support` ✅ COMPLETED
+
+**Goal:** add native PDF text extraction support.
+
+**Summary**
+
+- Added `pypdf>=4.0.0` dependency and implemented PDF handling in the CLI so `.pdf` files are:
+  - Detected explicitly and collected in a `pdf_files` list before the binary-file check.
+  - Processed via `pypdf.PdfReader`, with page text extracted and appended to the main prompt.
+- Implemented graceful error handling:
+  - Encrypted or textless (image-only) PDFs emit clear warnings to `stderr` and are skipped without aborting the run.
+- Treated PDFs as text for model selection:
+  - Vision models are only selected when there are image files and no text or PDF files.
+- Updated docs and metadata:
+  - Documented `.pdf` support and behavior in `README.md` (arguments, configuration, examples, and a dedicated “PDF Text Extraction” section).
+  - Bumped version to `0.1.27` in `pyproject.toml` and `src/ol/__init__.py`.
+  - Added a `[0.1.27]` entry to `CHANGELOG.md` describing PDF support and error handling.
+
 Reply with **`chat`** or **`generate`** for the vision endpoint choice, and I'll lock Branch 5's prompt to that path.
 

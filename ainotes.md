@@ -167,3 +167,30 @@ This change improves observability by ensuring all runtime errors are visible to
 ### Notes for CHANGELOG
 Vision and mixed-content requests now route through `/api/chat` endpoint with a strict payload contract. Text-only requests continue using `/api/generate`. This change improves support for multimodal content while maintaining backward compatibility for text-only usage.
 
+## Branch 10: PDF Text Extraction (feat/pdf-support)
+
+### Changes Made
+
+- Added `pypdf>=4.0.0` as a dependency and introduced native PDF text extraction.
+- Updated file classification in `run_ollama()` so `.pdf` files are collected in a `pdf_files` list before the binary-file check, ensuring they are not skipped as binary.
+- Implemented a PDF extraction loop that:
+  - Uses `pypdf.PdfReader` to iterate pages and call `extract_text()`.
+  - Joins extracted text and appends it to the main prompt in the same format as text files.
+  - Emits a warning to `stderr` and skips the file if the PDF is encrypted or yields no text (e.g., scanned/image-only).
+- Adjusted model-type selection so PDFs are treated like text input: the vision model is only selected when there are image files and no text or PDF files.
+- Updated debug output to include a PDF file count when applicable.
+
+### Documentation & Metadata
+
+- Documented `.pdf` support in `README.md` (arguments, configuration snippet, examples, and a dedicated “PDF Text Extraction” section).
+- Updated `project_spec.md` to include:
+  - `--set-default-host` in the CLI options.
+  - `hosts` section in the config structure.
+  - `.pdf` in file-handling features and default prompts.
+- Bumped version to `0.1.27` and added a `[0.1.27]` entry to `CHANGELOG.md` describing PDF support and behavior.
+
+### Notes
+
+- PDFs count as “text” for model routing and configuration, while images still control when `/api/chat` is used.
+- Error handling is intentionally non-fatal for problematic PDFs to avoid breaking multi-file workflows.
+
