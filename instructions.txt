@@ -39,3 +39,5 @@ Proceed to the final branch
 Plan and implement this feature please we just discussed.  Create a branch, do the work, Insure it passes all tests, increment bersion number, commit changes and push when done please.
 
 Extend the config structure to have the host, adda  --set-default-host argument. Insure you update the documentation and help usage as well.
+---
+I want to add native PDF text extraction support to `ol`. Please create a new branch `feat/pdf-support` and implement this feature by following these exact steps. [steps 1-5 and verification/commit as in the plan]

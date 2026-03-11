@@ -1,6 +1,6 @@
 Project Status Summary:
 
-Current Version: 0.1.20 (Stable)
+Current Version: 0.1.27 (Stable)
 
 Key Milestones:
 - Initial project setup and structure completed
@@ -16,6 +16,8 @@ Key Milestones:
 - Added Modelfile download and save functionality
 
 Recent Changes:
+- Native PDF text extraction support (pypdf>=4.0.0); .pdf files are routed before binary check, text extracted and appended to prompt; encrypted or empty PDFs emit a warning and are skipped
+- Version 0.1.27
 - Added --save-modelfile flag to download and save model Modelfiles
 - Added -a/--all flag to save Modelfiles for all installed models
 - Added --output-dir option for custom output directory

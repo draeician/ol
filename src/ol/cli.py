@@ -14,6 +14,7 @@ from datetime import datetime
 from pathlib import Path
 from typing import List, Optional, Sequence, Dict
 from urllib.parse import urlparse
+import pypdf
 from .config import Config
 
 def get_env() -> Dict[str, str]:
@@ -497,6 +498,7 @@ def run_ollama(prompt: str, model: str = None, files: Optional[List[str]] = None
     # Process files first to determine their types (needed to determine model type)
     image_files = []
     text_files = []
+    pdf_files = []
     
     if files:
         for file_path in files:
@@ -510,6 +512,10 @@ def run_ollama(prompt: str, model: str = None, files: Optional[List[str]] = None
                 image_files.append(abs_path)
                 if debug:
                     print(f"Added image file: {file_path} ({abs_path})")
+            elif abs_path.lower().endswith('.pdf'):
+                pdf_files.append(abs_path)
+                if debug:
+                    print(f"Added PDF file: {file_path} ({abs_path})")
             elif is_binary_file(abs_path):
                 print(f"Warning: Skipping binary file: {file_path}", file=sys.stderr)
             else:
@@ -523,7 +529,7 @@ def run_ollama(prompt: str, model: str = None, files: Optional[List[str]] = None
         # Clear any previous last_used model to ensure clean selection
         config.set_last_used_model(None)
         
-        if image_files and not text_files:
+        if image_files and not text_files and not pdf_files:
             # Only use vision model if we have only image files
             model_type = 'vision'
             model = config.get_model_for_type('vision')
@@ -537,7 +543,7 @@ def run_ollama(prompt: str, model: str = None, files: Optional[List[str]] = None
                 print(f"Selected text model: {model}")
     else:
         # If model is provided, determine type based on files
-        if image_files and not text_files:
+        if image_files and not text_files and not pdf_files:
             model_type = 'vision'
         else:
             model_type = 'text'
@@ -592,6 +598,42 @@ def run_ollama(prompt: str, model: str = None, files: Optional[List[str]] = None
             print(f"Error reading file {file_path}: {e}", file=sys.stderr)
             sys.exit(1)
 
+    # Add PDF file contents to prompt (extract text via pypdf)
+    for file_path in pdf_files:
+        try:
+            reader = pypdf.PdfReader(file_path)
+            parts = []
+            for page in reader.pages:
+                text = page.extract_text()
+                if text:
+                    parts.append(text)
+            extracted_text = "\n".join(parts).strip()
+            if not extracted_text:
+                print(
+                    f"Warning: No text extracted from PDF (may be scanned/image-only): {file_path}",
+                    file=sys.stderr,
+                )
+                continue
+            complete_prompt += (
+                f"\n\nContent of {os.path.basename(file_path)}:\n{extracted_text}"
+            )
+            if debug:
+                print(f"Added content from {os.path.basename(file_path)}")
+                print(f"PDF content length: {len(extracted_text)} characters")
+        except Exception as e:
+            msg = str(e).lower()
+            if "encrypted" in msg or "password" in msg:
+                print(
+                    f"Warning: Skipping encrypted PDF: {file_path}",
+                    file=sys.stderr,
+                )
+            else:
+                print(
+                    f"Warning: Could not extract text from PDF {file_path}: {e}",
+                    file=sys.stderr,
+                )
+            continue
+
     if debug:
         print("\n=== API Information ===")
         print(f"Will call Ollama API with:")
@@ -602,6 +644,8 @@ def run_ollama(prompt: str, model: str = None, files: Optional[List[str]] = None
             print(f"  Images: {len(image_files)} image(s)")
         if text_files:
             print(f"  Text files: {len(text_files)} file(s)")
+        if pdf_files:
+            print(f"  PDF files: {len(pdf_files)} file(s)")
         print()
 
     try:
