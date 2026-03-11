@@ -105,6 +105,7 @@ ol -d "Your prompt here" file1.txt
 
 # Use default prompt based on file type
 ol main.py  # Will use the default Python code review prompt
+ol doc.pdf  # PDF text is extracted and sent to the model (supports .pdf via pypdf)
 
 # Save a model's Modelfile
 ol -m llama3.2 --save-modelfile
@@ -177,6 +178,7 @@ default_prompts:
   .jpg: 'What do you see in this image?'
   .png: 'What do you see in this image?'
   .gif: 'What do you see in this image?'
+  .pdf: 'Please summarize or extract the key points from this PDF document:'
 ```
 
 ## Saving Modelfiles

@@ -136,6 +136,39 @@ def test_file_not_readable(tmp_path):
     
     test_file.chmod(0o644)  # Restore permissions for cleanup
 
+
+def test_pdf_processing(mocker, tmp_path, capsys):
+    """Test that .pdf files are processed via pypdf and text is injected into the prompt."""
+    # Create a file that exists and ends in .pdf (content can be minimal; we mock PdfReader)
+    pdf_file = tmp_path / "doc.pdf"
+    pdf_file.write_bytes(b"%PDF-1.4 minimal\n")
+
+    mock_page = MagicMock()
+    mock_page.extract_text.return_value = "Mock PDF content"
+    mock_reader = MagicMock()
+    mock_reader.pages = [mock_page]
+
+    mocker.patch("ol.cli.pypdf.PdfReader", return_value=mock_reader)
+
+    mock_response = MagicMock()
+    mock_response.iter_lines.return_value = create_mock_streaming_response(
+        "Response", done=True
+    )
+    mock_response.raise_for_status = MagicMock()
+    mock_post = mocker.patch("requests.post", return_value=mock_response)
+
+    main(["-m", "llama3.2", "Summarize this", str(pdf_file)])
+
+    captured = capsys.readouterr()
+    assert "Skipping binary file" not in captured.err
+
+    assert mock_post.called
+    call_args = mock_post.call_args
+    payload = call_args[1]["json"]
+    assert "prompt" in payload
+    assert "Mock PDF content" in payload["prompt"]
+
+
 # Configuration Tests
 def test_model_selection_for_file_types(mocker, tmp_path, capsys):
     """Test model selection logic for different file types via HTTP API."""

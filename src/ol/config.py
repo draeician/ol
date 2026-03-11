@@ -57,6 +57,7 @@ DEFAULT_CONFIG = {
         '.jpg': 'What do you see in this image?',
         '.png': 'What do you see in this image?',
         '.gif': 'What do you see in this image?',
+        '.pdf': 'Please summarize or extract the key points from this PDF document:',
         # Add more file types as needed
     }
 }
