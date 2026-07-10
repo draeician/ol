@@ -10,12 +10,16 @@ import shlex
 import textwrap
 import socket
 import requests
+import argcomplete
+from argcomplete.completers import DirectoriesCompleter, FilesCompleter
 from datetime import datetime
 from pathlib import Path
 from typing import List, Optional, Sequence, Dict
 from urllib.parse import urlparse
 import pypdf
 from .config import Config
+
+MODEL_TYPES = ('text', 'vision')
 
 def get_env() -> Dict[str, str]:
     """Get environment variables for Ollama."""
@@ -107,6 +111,29 @@ def list_installed_models(env: Dict[str, str], debug: bool = False) -> List[str]
     if debug:
         print(f"DEBUG: Found {len(names)} models via text parsing", file=sys.stderr)
     return names
+
+
+def complete_model_type(prefix: str, **kwargs) -> List[str]:
+    """Complete model type choices (text or vision)."""
+    return [t for t in MODEL_TYPES if t.startswith(prefix)]
+
+
+def complete_model_name(prefix: str, **kwargs) -> List[str]:
+    """Complete installed Ollama model names matching prefix."""
+    try:
+        names = list_installed_models(get_env())
+    except Exception:
+        return []
+    return [name for name in names if name.startswith(prefix)]
+
+
+def complete_model_type_then_model(prefix: str, **kwargs) -> List[str]:
+    """Complete type then model for --set-default-model (nargs=2)."""
+    matches: List[str] = complete_model_type(prefix, **kwargs)
+    for name in complete_model_name(prefix, **kwargs):
+        if name not in matches:
+            matches.append(name)
+    return matches
 
 def list_models() -> None:
     """List all available Ollama models."""
@@ -833,34 +860,61 @@ def main(argv: Optional[Sequence[str]] = None) -> None:
     # Existing arguments
     parser.add_argument('-l', '--list', action='store_true', 
                        help='List available models (works with both local and remote instances)')
-    parser.add_argument('-m', '--model', 
-                       help='Model to use (default: from config). Vision models need absolute paths for remote.')
+    model_arg = parser.add_argument(
+        '-m', '--model',
+        help='Model to use (default: from config). Vision models need absolute paths for remote.',
+    )
+    model_arg.completer = complete_model_name
     parser.add_argument('-d', '--debug', action='store_true',
                        help='Show debug information including API request details and equivalent shell commands')
-    parser.add_argument('-f', '--file', metavar='PROMPTFILE',
-                       help='Read prompt text from a file')
+    file_arg = parser.add_argument(
+        '-f', '--file', metavar='PROMPTFILE',
+        help='Read prompt text from a file',
+    )
+    file_arg.completer = FilesCompleter()
     parser.add_argument('--save-modelfile', action='store_true',
                        help='Download and save the Modelfile for the specified model')
     parser.add_argument('-a', '--all', action='store_true',
                        help='Save Modelfiles for all models (requires --save-modelfile)')
-    parser.add_argument('--output-dir', 
-                       help='Output directory for saved Modelfile (default: current working directory)')
+    output_dir_arg = parser.add_argument(
+        '--output-dir',
+        help='Output directory for saved Modelfile (default: current working directory)',
+    )
+    output_dir_arg.completer = DirectoriesCompleter()
     parser.add_argument('-h', '--host', default=None,
                        help='Ollama host (default: localhost). Overrides OLLAMA_HOST and configured hosts for this command.')
     parser.add_argument('-p', '--port', type=int, default=None,
                        help='Ollama port (default: 11434). Overrides OLLAMA_HOST and configured hosts for this command.')
-    parser.add_argument('--set-default-model', nargs=2, metavar=('TYPE', 'MODEL'),
-                       help='Set default model for type (text or vision). Usage: --set-default-model TYPE MODEL_NAME')
-    parser.add_argument('--set-default-temperature', nargs=2, metavar=('TYPE', 'TEMPERATURE'),
-                       help='Set default temperature for type (text or vision). Usage: --set-default-temperature TYPE TEMP')
-    parser.add_argument('--set-default-host', nargs=2, metavar=('TYPE', 'HOST'),
-                       help='Set default host for type (text or vision). Usage: --set-default-host TYPE HOST_URL')
+    set_default_model_arg = parser.add_argument(
+        '--set-default-model', nargs=2, metavar=('TYPE', 'MODEL'),
+        help='Set default model for type (text or vision). Usage: --set-default-model TYPE MODEL_NAME',
+    )
+    set_default_model_arg.completer = complete_model_type_then_model
+    set_default_temperature_arg = parser.add_argument(
+        '--set-default-temperature', nargs=2, metavar=('TYPE', 'TEMPERATURE'),
+        help='Set default temperature for type (text or vision). Usage: --set-default-temperature TYPE TEMP',
+    )
+    set_default_temperature_arg.completer = complete_model_type
+    set_default_host_arg = parser.add_argument(
+        '--set-default-host', nargs=2, metavar=('TYPE', 'HOST'),
+        help='Set default host for type (text or vision). Usage: --set-default-host TYPE HOST_URL',
+    )
+    set_default_host_arg.completer = complete_model_type
     parser.add_argument('--temperature', type=float,
                        help='Temperature for this command (0.0-2.0, overrides default)')
-    parser.add_argument('prompt', nargs='?', default=None,
-                       help='Prompt to send to Ollama (optional if files are provided)')
-    parser.add_argument('files', nargs='*',
-                       help='Files to inject into the prompt (text/code, PDFs, images). PDFs are summarized via text extraction; for remote vision models, use absolute image paths.')
+    prompt_arg = parser.add_argument(
+        'prompt', nargs='?', default=None,
+        help='Prompt to send to Ollama (optional if files are provided)',
+    )
+    prompt_arg.completer = FilesCompleter()
+    files_arg = parser.add_argument(
+        'files', nargs='*',
+        help='Files to inject into the prompt (text/code, PDFs, images). PDFs are summarized via text extraction; for remote vision models, use absolute image paths.',
+    )
+    files_arg.completer = FilesCompleter()
+
+    # Shell tab completion (no-op unless _ARGCOMPLETE is set by the shell)
+    argcomplete.autocomplete(parser)
 
     args = parser.parse_args(argv)
 

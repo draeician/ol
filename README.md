@@ -29,6 +29,24 @@ On first use, `ol` will automatically:
 
 **Note**: Initialization happens when you first run the `ol` command, not during installation. This ensures the package can be imported without side effects.
 
+### Shell tab completion (bash / zsh)
+
+After installing with pipx, enable completion once in your shell:
+
+```bash
+# bash — add to ~/.bashrc
+eval "$(register-python-argcomplete ol)"
+
+# zsh — add to ~/.zshrc (after compinit)
+eval "$(register-python-argcomplete ol)"
+```
+
+Then reload your shell (or `source` the rc file). Tab completion covers:
+
+- Filesystem paths for `-f`/`--file`, `--output-dir`, and positional content files
+- Installed model names for `-m`/`--model`
+- Model types (`text`/`vision`) for the `--set-default-*` commands
+
 ### Using pip (Alternative)
 
 ```bash

@@ -5,7 +5,7 @@ import subprocess
 import base64
 from pathlib import Path
 from unittest.mock import patch, MagicMock
-from ol.cli import main, get_env, is_image_file, get_file_type_and_prompt, format_shell_command, save_modelfile, save_all_modelfiles, list_installed_models, sanitize_model_name
+from ol.cli import main, get_env, is_image_file, get_file_type_and_prompt, format_shell_command, save_modelfile, save_all_modelfiles, list_installed_models, sanitize_model_name, complete_model_type, complete_model_name, complete_model_type_then_model
 
 def create_mock_streaming_response(response_text, done=True):
     """Helper to create a mock streaming response with line-delimited JSON."""
@@ -1350,3 +1350,46 @@ def test_cli_flags_override_config_host(mocker, tmp_path, monkeypatch, capsys):
     call_args = mock_post.call_args
     assert 'http://cli-server:11435' in call_args[0][0]
     assert 'config-server' not in call_args[0][0]
+
+
+def test_complete_model_type():
+    """Test model type completer filters text/vision by prefix."""
+    assert complete_model_type('') == ['text', 'vision']
+    assert complete_model_type('t') == ['text']
+    assert complete_model_type('v') == ['vision']
+    assert complete_model_type('x') == []
+
+
+def test_complete_model_name(mocker):
+    """Test model name completer filters installed models by prefix."""
+    mocker.patch(
+        'ol.cli.list_installed_models',
+        return_value=['llama3.2', 'llama3.2-vision', 'codellama', 'mistral'],
+    )
+    mocker.patch('ol.cli.get_env', return_value={})
+    assert complete_model_name('llama') == ['llama3.2', 'llama3.2-vision']
+    assert complete_model_name('code') == ['codellama']
+    assert complete_model_name('xyz') == []
+
+
+def test_complete_model_name_on_error(mocker):
+    """Test model name completer returns empty list when listing fails."""
+    mocker.patch('ol.cli.list_installed_models', side_effect=RuntimeError('fail'))
+    mocker.patch('ol.cli.get_env', return_value={})
+    assert complete_model_name('llama') == []
+
+
+def test_complete_model_type_then_model(mocker):
+    """Test combined completer returns types and matching models."""
+    mocker.patch(
+        'ol.cli.list_installed_models',
+        return_value=['llama3.2', 'codellama'],
+    )
+    mocker.patch('ol.cli.get_env', return_value={})
+    assert complete_model_type_then_model('t') == ['text']
+    assert complete_model_type_then_model('llama') == ['llama3.2']
+    combined = complete_model_type_then_model('')
+    assert 'text' in combined
+    assert 'vision' in combined
+    assert 'llama3.2' in combined
+    assert 'codellama' in combined

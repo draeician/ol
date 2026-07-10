@@ -35,6 +35,20 @@ OLLAMA_HOST=http://server:11434 ol [options] "PROMPT" [FILES...]
 
 **Note**: Running `ol` without any arguments displays the current configuration defaults (host, models, temperatures).
 
+## Shell Tab Completion
+
+Enable once after install (bash or zsh):
+
+```bash
+# bash — add to ~/.bashrc
+eval "$(register-python-argcomplete ol)"
+
+# zsh — add to ~/.zshrc (after compinit)
+eval "$(register-python-argcomplete ol)"
+```
+
+Completion covers filesystem paths for `-f`/`--file`, `--output-dir`, and positional content files; model names for `-m`; and `text`/`vision` for `--set-default-*` type arguments.
+
 ## Environment Variables
 - `OLLAMA_HOST`    : URL of remote Ollama instance (e.g., http://server:11434)
                     Leave unset for local instance
@@ -43,6 +57,7 @@ OLLAMA_HOST=http://server:11434 ol [options] "PROMPT" [FILES...]
 
 ### Core Functionality
 - Command-line interface to Ollama
+- Shell tab completion via argcomplete (bash/zsh) for path and model arguments
 - Support for both local and remote Ollama instances via HTTP API
 - File content injection into prompts
 - Model selection and management

@@ -5,6 +5,17 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.1.29] - 2026-07-10
+
+### Added
+- Shell tab completion via argcomplete (bash and zsh)
+- Filesystem path completion for `-f`/`--file`, `--output-dir`, and positional content-file arguments
+- Model name completion for `-m`/`--model` and `--set-default-model`
+- Model type completion (`text`/`vision`) for `--set-default-model`, `--set-default-temperature`, and `--set-default-host`
+
+### Notes
+- Enable once per shell: `eval "$(register-python-argcomplete ol)"` in `~/.bashrc` or `~/.zshrc`
+
 ## [0.1.28] - 2026-07-10
 
 ### Added
