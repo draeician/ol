@@ -16,6 +16,7 @@ OLLAMA_HOST=http://server:11434 ol [options] "PROMPT" [FILES...]
 - `-l, --list`                    : List models (works with both local and remote instances)
 - `-m MODEL, --model MODEL`       : Model to use for this REPL (default: from config)
 - `-d, --debug`                   : Show debug information including API request details
+- `-f PROMPTFILE, --file PROMPTFILE`: Read prompt text from a file (mutually exclusive with a positional prompt)
 - `-h HOST, --host HOST`          : Ollama host (default: localhost). Overrides OLLAMA_HOST for this command.
 - `-p PORT, --port PORT`          : Ollama port (default: 11434). Overrides OLLAMA_HOST for this command.
 - `--set-default-model TYPE MODEL`: Set default model for type (text or vision). Usage: `--set-default-model text codellama`
@@ -169,6 +170,10 @@ pip install . or pipx uninstall ol
 ```bash
 # Basic usage
 ol "Your prompt" file.txt
+
+# Prompt from a file
+ol -f prompt.txt
+ol --file prompt.txt main.py
 
 # With model selection
 ol -m codellama "Review this code" main.py

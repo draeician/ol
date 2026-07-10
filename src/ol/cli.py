@@ -804,6 +804,10 @@ def main(argv: Optional[Sequence[str]] = None) -> None:
               ol -h server -p 11434 -m llama3.2 "Your prompt" file.txt
               ol -h localhost -p 11435 "Hello"
               
+              # Prompt from a file:
+              ol -f prompt.txt
+              ol --file prompt.txt main.py
+              
               # STDIN input (piping/redirection):
               echo "What is Python?" | ol
               ol < file.txt
@@ -833,6 +837,8 @@ def main(argv: Optional[Sequence[str]] = None) -> None:
                        help='Model to use (default: from config). Vision models need absolute paths for remote.')
     parser.add_argument('-d', '--debug', action='store_true',
                        help='Show debug information including API request details and equivalent shell commands')
+    parser.add_argument('-f', '--file', metavar='PROMPTFILE',
+                       help='Read prompt text from a file')
     parser.add_argument('--save-modelfile', action='store_true',
                        help='Download and save the Modelfile for the specified model')
     parser.add_argument('-a', '--all', action='store_true',
@@ -970,6 +976,38 @@ def main(argv: Optional[Sequence[str]] = None) -> None:
         if Path(expanded_path).exists():
             args.files.insert(0, expanded_path)
             args.prompt = None
+
+    # Handle --file / -f: read prompt text from a file
+    if args.file:
+        if args.prompt:
+            print(
+                "Error: cannot use both --file and a prompt argument",
+                file=sys.stderr,
+            )
+            sys.exit(1)
+        prompt_path = Path(args.file).expanduser()
+        if not prompt_path.exists():
+            print(
+                f"Error: Prompt file not found: {args.file}",
+                file=sys.stderr,
+            )
+            sys.exit(1)
+        try:
+            with open(prompt_path, 'r', encoding='utf-8') as f:
+                file_prompt = f.read()
+            args.prompt = file_prompt.rstrip('\n\r')
+            if args.debug:
+                print(
+                    f"DEBUG: Read prompt from file {prompt_path} "
+                    f"({len(args.prompt)} characters)",
+                    file=sys.stderr,
+                )
+        except (IOError, OSError, UnicodeDecodeError) as e:
+            print(
+                f"Error: Failed to read prompt file '{args.file}': {e}",
+                file=sys.stderr,
+            )
+            sys.exit(1)
 
     # Handle STDIN input - if present, use it as prompt (or combine with existing prompt)
     if stdin_input:

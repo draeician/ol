@@ -5,6 +5,16 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.1.28] - 2026-07-10
+
+### Added
+- `-f` / `--file PROMPTFILE` option to read the prompt text from a file
+- Prompt file can be combined with content files for injection (e.g. `ol -f prompt.txt main.py`)
+
+### Notes
+- `--file` and a positional prompt argument are mutually exclusive
+- STDIN still combines with a prompt from `--file` the same way it combines with a positional prompt
+
 ## [0.1.27] - 2025-03-10
 
 ### Added

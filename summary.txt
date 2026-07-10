@@ -1,6 +1,6 @@
 Project Status Summary:
 
-Current Version: 0.1.27 (Stable)
+Current Version: 0.1.28 (Stable)
 
 Key Milestones:
 - Initial project setup and structure completed
@@ -16,10 +16,12 @@ Key Milestones:
 - Added Modelfile download and save functionality
 
 Recent Changes:
+- Version 0.1.28: Added -f/--file PROMPTFILE to read prompt text from a file (additive; positional prompt, STDIN, and content-file injection unchanged)
+- --file is mutually exclusive with a positional prompt argument; can be combined with content files and STDIN
 - Native PDF text extraction support (pypdf>=4.0.0); .pdf files are routed before binary check, text extracted and appended to prompt; encrypted or empty PDFs emit a warning and are skipped
 - Version 0.1.27
 - Added --save-modelfile flag to download and save model Modelfiles
-- Added -a/--all flag to save Modelfiles for all installed models
+- Added -a/--all flag to save Modelfiles for all models
 - Added --output-dir option for custom output directory
 - Implemented save_modelfile() and save_all_modelfiles() functions with proper error handling
 - Implemented list_installed_models() helper with JSON and text parsing fallback

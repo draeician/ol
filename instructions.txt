@@ -41,3 +41,15 @@ Plan and implement this feature please we just discussed.  Create a branch, do t
 Extend the config structure to have the host, adda  --set-default-host argument. Insure you update the documentation and help usage as well.
 ---
 I want to add native PDF text extraction support to `ol`. Please create a new branch `feat/pdf-support` and implement this feature by following these exact steps. [steps 1-5 and verification/commit as in the plan]
+
+---
+Currently, the repo requires you to put the prompt on the cli.  I would like to have the option of giving the prompt in a file with a --file promptfile or -f promptfile.  This is an addition, do not remove any existing functionality.
+---
+Add `--file` / `-f` prompt option
+
+Implement the plan as specified, it is attached for your reference. Do NOT edit the plan file itself.
+
+To-do's from the plan have already been created. Do not create them again. Mark them as in_progress as you work, starting with the first one. Don't stop until you have completed all the to-dos.
+
+---
+Commit changes and push to remote

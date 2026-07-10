@@ -74,6 +74,86 @@ def test_run_with_temperature(mocker, capsys):
     payload = call_args[1]['json']
     assert payload['temperature'] == 0.9
 
+
+def test_prompt_from_file_short_flag(mocker, tmp_path, capsys):
+    """Test that -f reads prompt text from a file."""
+    mock_response = MagicMock()
+    mock_response.iter_lines.return_value = create_mock_streaming_response("Hello", done=True)
+    mock_response.raise_for_status = MagicMock()
+    mock_post = mocker.patch('requests.post', return_value=mock_response)
+
+    prompt_file = tmp_path / "prompt.txt"
+    prompt_file.write_text("Prompt from file\n")
+
+    main(['-m', 'llama3.2', '-f', str(prompt_file)])
+
+    payload = mock_post.call_args[1]['json']
+    assert payload['prompt'] == 'Prompt from file'
+    captured = capsys.readouterr()
+    assert 'Hello' in captured.out
+
+
+def test_prompt_from_file_long_flag(mocker, tmp_path):
+    """Test that --file reads prompt text from a file."""
+    mock_response = MagicMock()
+    mock_response.iter_lines.return_value = create_mock_streaming_response("OK", done=True)
+    mock_response.raise_for_status = MagicMock()
+    mock_post = mocker.patch('requests.post', return_value=mock_response)
+
+    prompt_file = tmp_path / "prompt.txt"
+    prompt_file.write_text("Long flag prompt")
+
+    main(['-m', 'llama3.2', '--file', str(prompt_file)])
+
+    payload = mock_post.call_args[1]['json']
+    assert payload['prompt'] == 'Long flag prompt'
+
+
+def test_prompt_from_file_with_content_file(mocker, tmp_path):
+    """Test -f prompt file combined with a content file to inject."""
+    mock_response = MagicMock()
+    mock_response.iter_lines.return_value = create_mock_streaming_response("OK", done=True)
+    mock_response.raise_for_status = MagicMock()
+    mock_post = mocker.patch('requests.post', return_value=mock_response)
+
+    prompt_file = tmp_path / "prompt.txt"
+    prompt_file.write_text("Review this code")
+    code_file = tmp_path / "main.py"
+    code_file.write_text("print('hello')")
+
+    main(['-m', 'llama3.2', '-f', str(prompt_file), str(code_file)])
+
+    payload = mock_post.call_args[1]['json']
+    assert 'Review this code' in payload['prompt']
+    assert "print('hello')" in payload['prompt']
+    assert 'Content of main.py' in payload['prompt']
+
+
+def test_prompt_from_file_conflicts_with_prompt_arg(tmp_path, capsys):
+    """Test that --file and a positional prompt argument are mutually exclusive."""
+    prompt_file = tmp_path / "prompt.txt"
+    prompt_file.write_text("From file")
+
+    with pytest.raises(SystemExit) as exc_info:
+        main(['-f', str(prompt_file), 'also a prompt'])
+    assert exc_info.value.code == 1
+
+    captured = capsys.readouterr()
+    assert 'cannot use both --file and a prompt argument' in captured.err
+
+
+def test_prompt_from_file_missing(tmp_path, capsys):
+    """Test error when the prompt file does not exist."""
+    missing = tmp_path / "missing_prompt.txt"
+
+    with pytest.raises(SystemExit) as exc_info:
+        main(['-f', str(missing)])
+    assert exc_info.value.code == 1
+
+    captured = capsys.readouterr()
+    assert 'Prompt file not found' in captured.err
+
+
 def test_debug_output(mocker, capsys, tmp_path):
     """Test debug output with file processing via HTTP API."""
     mock_response = MagicMock()

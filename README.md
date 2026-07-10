@@ -97,6 +97,10 @@ ol -m llama3.2 "Your prompt here"
 # Include file contents in the prompt
 ol "Your prompt here" file1.txt file2.txt
 
+# Read prompt from a file
+ol -f prompt.txt
+ol --file prompt.txt main.py
+
 # Use a different model with files
 ol -m codellama "Review this code" main.py test.py
 
@@ -119,6 +123,7 @@ ol -m llama3.2:latest --save-modelfile --output-dir ~/.config/ol/templates
 - `-l, --list`: List available models (works with both local and remote instances)
 - `-m MODEL, --model MODEL`: Specify the model to use (default: from config)
 - `-d, --debug`: Show debug information including API request details
+- `-f PROMPTFILE, --file PROMPTFILE`: Read prompt text from a file (mutually exclusive with a positional prompt argument)
 - `-h HOST, --host HOST`: Ollama host (default: localhost). Overrides OLLAMA_HOST for this command.
 - `-p PORT, --port PORT`: Ollama port (default: 11434). Overrides OLLAMA_HOST for this command.
 - `--set-default-model TYPE MODEL`: Set default model for type (text or vision). Usage: `--set-default-model text codellama`
