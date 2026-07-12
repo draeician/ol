@@ -16,6 +16,13 @@ Key Milestones:
 - Added Modelfile download and save functionality
 
 Recent Changes:
+- Initialized Grok starter files from existing crules swarm modes and project_spec:
+  - AGENTS.md (canonical, status [CUSTOMIZED])
+  - GROK.md (thin Grok entrypoint)
+  - .grok/rules/{00-swarm-sop,10-python-style,20-git-and-version}.md
+  - .grok/agents/{swarm,coder,manager}.md
+  - .crules/tasks/{wip,review,done}/ pipeline dirs (local; .crules/ is gitignored)
+- Confirmed via `grok inspect`: project rules + swarm/coder/manager agents load
 - Autocomplete feature verified by user; changes committed and pushed to remote
 - Version 0.1.29: Shell tab completion via argcomplete for bash/zsh; filesystem completion for -f/--file, --output-dir, and positional content files; model name completion for -m; type completion for --set-default-* commands; enable with eval "$(register-python-argcomplete ol)"
 - Version 0.1.28: Added -f/--file PROMPTFILE to read prompt text from a file (additive; positional prompt, STDIN, and content-file injection unchanged)
