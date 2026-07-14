@@ -16,6 +16,7 @@ OLLAMA_HOST=http://server:11434 ol [options] "PROMPT" [FILES...]
 - `-l, --list`                    : List models (works with both local and remote instances)
 - `-m MODEL, --model MODEL`       : Model to use for this REPL (default: from config)
 - `-d, --debug`                   : Show debug information including API request details
+- `-s, --stats`                   : Show performance metrics after the response (Ollama --verbose style)
 - `-f PROMPTFILE, --file PROMPTFILE`: Read prompt text from a file (mutually exclusive with a positional prompt)
 - `-h HOST, --host HOST`          : Ollama host (default: localhost). Overrides OLLAMA_HOST for this command.
 - `-p PORT, --port PORT`          : Ollama port (default: 11434). Overrides OLLAMA_HOST for this command.
@@ -63,6 +64,7 @@ Completion covers filesystem paths for `-f`/`--file`, `--output-dir`, and positi
 - Model selection and management
 - Temperature control for text and vision models
 - Debug output option showing API request details
+- `-s`/`--stats` performance metrics (Ollama `--verbose` style) after responses
 - Always-on context-window failsafe: refuses requests that cannot fit the
   effective model context (loaded `/api/ps` context when available, else
   `/api/show` maximum), and exits non-zero if the stream ends with

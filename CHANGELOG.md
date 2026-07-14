@@ -5,6 +5,13 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.1.32] - 2026-07-14
+
+### Added
+- `-s` / `--stats` flag to print Ollama `--verbose`-style performance metrics
+  after each response (total/load/prompt-eval/eval durations and tokens/s)
+- Stats are written to stderr so stdout remains clean for piping
+
 ## [0.1.31] - 2026-07-14
 
 ### Added

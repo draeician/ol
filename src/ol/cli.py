@@ -584,9 +584,90 @@ def save_modelfile(model: str, out_dir: Optional[str] = None, debug: bool = Fals
         print(error_msg, file=sys.stderr)
         sys.exit(1)
 
+def format_ns_duration(nanoseconds: int) -> str:
+    """Format a nanosecond duration similar to Ollama --verbose."""
+    if nanoseconds >= 1_000_000_000:
+        value = nanoseconds / 1_000_000_000
+        text = f"{value:.9f}".rstrip('0').rstrip('.')
+        return f"{text}s"
+    if nanoseconds >= 1_000_000:
+        value = nanoseconds / 1_000_000
+        text = f"{value:.6f}".rstrip('0').rstrip('.')
+        return f"{text}ms"
+    if nanoseconds >= 1_000:
+        value = nanoseconds / 1_000
+        text = f"{value:.3f}".rstrip('0').rstrip('.')
+        return f"{text}µs"
+    return f"{nanoseconds}ns"
+
+
+def format_performance_stats(metrics: Dict) -> str:
+    """
+    Build Ollama --verbose-style performance stats from a done chunk.
+
+    Args:
+        metrics: Final streaming JSON object (done=true) from generate/chat.
+
+    Returns:
+        Multi-line stats string (no trailing newline after last line).
+    """
+    lines = []
+
+    total_duration = metrics.get('total_duration')
+    if isinstance(total_duration, int) and total_duration > 0:
+        lines.append(
+            f"total duration:       {format_ns_duration(total_duration)}"
+        )
+
+    load_duration = metrics.get('load_duration')
+    if isinstance(load_duration, int) and load_duration > 0:
+        lines.append(
+            f"load duration:        {format_ns_duration(load_duration)}"
+        )
+
+    prompt_eval_count = metrics.get('prompt_eval_count')
+    if isinstance(prompt_eval_count, int) and prompt_eval_count > 0:
+        lines.append(
+            f"prompt eval count:    {prompt_eval_count} token(s)"
+        )
+
+    prompt_eval_duration = metrics.get('prompt_eval_duration')
+    if (
+        isinstance(prompt_eval_duration, int)
+        and prompt_eval_duration > 0
+        and isinstance(prompt_eval_count, int)
+        and prompt_eval_count > 0
+    ):
+        lines.append(
+            f"prompt eval duration: "
+            f"{format_ns_duration(prompt_eval_duration)}"
+        )
+        rate = prompt_eval_count / (prompt_eval_duration / 1_000_000_000)
+        lines.append(f"prompt eval rate:     {rate:.2f} tokens/s")
+
+    eval_count = metrics.get('eval_count')
+    if isinstance(eval_count, int) and eval_count > 0:
+        lines.append(f"eval count:           {eval_count} token(s)")
+
+    eval_duration = metrics.get('eval_duration')
+    if (
+        isinstance(eval_duration, int)
+        and eval_duration > 0
+        and isinstance(eval_count, int)
+        and eval_count > 0
+    ):
+        lines.append(
+            f"eval duration:        {format_ns_duration(eval_duration)}"
+        )
+        rate = eval_count / (eval_duration / 1_000_000_000)
+        lines.append(f"eval rate:            {rate:.2f} tokens/s")
+
+    return "\n".join(lines)
+
+
 def call_ollama_api(model: str, prompt: str, temperature: float, image_files: Optional[List[str]] = None, 
                     text_files: Optional[List[str]] = None, env: Optional[Dict[str, str]] = None, 
-                    debug: bool = False) -> None:
+                    debug: bool = False, stats: bool = False) -> None:
     """
     Call Ollama API with the given parameters.
     
@@ -600,6 +681,7 @@ def call_ollama_api(model: str, prompt: str, temperature: float, image_files: Op
         text_files: Optional list of text file paths
         env: Environment variables dict
         debug: Whether to show debug information
+        stats: Whether to print Ollama-style performance metrics to stderr
     """
     base_url = get_ollama_base_url(env)
     
@@ -690,6 +772,7 @@ def call_ollama_api(model: str, prompt: str, temperature: float, image_files: Op
         # Stream and print response
         emitted_any = False
         done_reason = None
+        final_metrics = None
         for line in response.iter_lines():
             if line:
                 try:
@@ -713,6 +796,7 @@ def call_ollama_api(model: str, prompt: str, temperature: float, image_files: Op
                         print(chunk, end='', flush=True)
                     if data.get('done', False):
                         done_reason = data.get('done_reason')
+                        final_metrics = data
                         break
                 except json.JSONDecodeError as e:
                     if debug:
@@ -722,6 +806,11 @@ def call_ollama_api(model: str, prompt: str, temperature: float, image_files: Op
                     continue
         
         print()  # Newline after response
+
+        if stats and final_metrics:
+            stats_text = format_performance_stats(final_metrics)
+            if stats_text:
+                print(stats_text, file=sys.stderr)
 
         # Fail closed if Ollama truncated: empty or partial output from length limit.
         if done_reason == 'length':
@@ -748,7 +837,7 @@ def call_ollama_api(model: str, prompt: str, temperature: float, image_files: Op
 
 def run_ollama(prompt: str, model: str = None, files: Optional[List[str]] = None, 
                temperature: Optional[float] = None, debug: bool = False, 
-               cli_host_provided: bool = False) -> None:
+               cli_host_provided: bool = False, stats: bool = False) -> None:
     """
     Run Ollama with the given prompt and optional files.
     
@@ -758,6 +847,8 @@ def run_ollama(prompt: str, model: str = None, files: Optional[List[str]] = None
         files: Optional list of files to inject into the prompt
         temperature: Temperature to use (if None, will use default from config)
         debug: Whether to show debug information
+        cli_host_provided: Whether CLI host/port flags were provided
+        stats: Whether to print performance metrics after the response
     """
     config = Config()
     
@@ -916,7 +1007,16 @@ def run_ollama(prompt: str, model: str = None, files: Optional[List[str]] = None
 
     try:
         # Use API instead of subprocess
-        call_ollama_api(model, complete_prompt, temperature, image_files, text_files, env, debug)
+        call_ollama_api(
+            model,
+            complete_prompt,
+            temperature,
+            image_files,
+            text_files,
+            env,
+            debug,
+            stats,
+        )
         
         # Only save last used model after successful execution
         config.set_last_used_model(model)
@@ -1106,6 +1206,8 @@ def main(argv: Optional[Sequence[str]] = None) -> None:
     model_arg.completer = complete_model_name
     parser.add_argument('-d', '--debug', action='store_true',
                        help='Show debug information including API request details and equivalent shell commands')
+    parser.add_argument('-s', '--stats', action='store_true',
+                       help='Show performance metrics after the response (Ollama --verbose style)')
     file_arg = parser.add_argument(
         '-f', '--file', metavar='PROMPTFILE',
         help='Read prompt text from a file',
@@ -1341,7 +1443,15 @@ def main(argv: Optional[Sequence[str]] = None) -> None:
     # Determine if CLI host flags were provided
     cli_host_provided = args.host is not None or args.port is not None
     
-    run_ollama(args.prompt, args.model, args.files, args.temperature, args.debug, cli_host_provided)
+    run_ollama(
+        args.prompt,
+        args.model,
+        args.files,
+        args.temperature,
+        args.debug,
+        cli_host_provided,
+        args.stats,
+    )
 
 if __name__ == '__main__':
     main() 

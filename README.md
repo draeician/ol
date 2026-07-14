@@ -141,6 +141,7 @@ ol -m llama3.2:latest --save-modelfile --output-dir ~/.config/ol/templates
 - `-l, --list`: List available models (works with both local and remote instances)
 - `-m MODEL, --model MODEL`: Specify the model to use (default: from config)
 - `-d, --debug`: Show debug information including API request details
+- `-s, --stats`: Show performance metrics after the response (Ollama `--verbose` style)
 - `-f PROMPTFILE, --file PROMPTFILE`: Read prompt text from a file (mutually exclusive with a positional prompt argument)
 - `-h HOST, --host HOST`: Ollama host (default: localhost). Overrides OLLAMA_HOST for this command.
 - `-p PORT, --port PORT`: Ollama port (default: 11434). Overrides OLLAMA_HOST for this command.

@@ -21,6 +21,8 @@ from ol.cli import (
     estimate_prompt_tokens,
     ensure_prompt_fits_context,
     call_ollama_api,
+    format_performance_stats,
+    format_ns_duration,
     DEFAULT_REPLY_TOKEN_RESERVE,
 )
 
@@ -1514,3 +1516,58 @@ def test_stream_done_reason_length_partial_exits(mocker, capsys):
     assert 'Partial' in captured.out
     assert 'truncated' in captured.err
     assert 'compromised' in captured.err
+
+
+def test_format_ns_duration_units():
+    """Nanosecond formatter matches Ollama-style unit selection."""
+    assert format_ns_duration(500).endswith('ns')
+    assert 'µs' in format_ns_duration(1500)
+    assert format_ns_duration(2_000_000).endswith('ms')
+    assert format_ns_duration(5_088_275_983).endswith('s')
+
+
+def test_format_performance_stats_verbose_style():
+    """Stats text mirrors ollama --verbose fields and rates."""
+    text = format_performance_stats({
+        'total_duration': 5_088_275_983,
+        'load_duration': 1_365_523,
+        'prompt_eval_count': 11,
+        'prompt_eval_duration': 204_563_000,
+        'eval_count': 120,
+        'eval_duration': 4_876_787_000,
+    })
+    assert 'total duration:' in text
+    assert 'load duration:' in text
+    assert 'prompt eval count:    11 token(s)' in text
+    assert 'prompt eval rate:' in text
+    assert 'eval count:           120 token(s)' in text
+    assert 'eval rate:' in text
+    assert 'tokens/s' in text
+
+
+def test_stats_flag_prints_metrics_to_stderr(mocker, capsys):
+    """-s/--stats prints performance metrics on stderr after the answer."""
+    mock_response = MagicMock()
+    mock_response.iter_lines.return_value = iter([
+        json.dumps({"response": "Hi", "done": False}).encode('utf-8'),
+        json.dumps({
+            "response": "",
+            "done": True,
+            "done_reason": "stop",
+            "total_duration": 1_000_000_000,
+            "load_duration": 100_000_000,
+            "prompt_eval_count": 5,
+            "prompt_eval_duration": 50_000_000,
+            "eval_count": 10,
+            "eval_duration": 500_000_000,
+        }).encode('utf-8'),
+    ])
+    mock_response.raise_for_status = MagicMock()
+    mocker.patch('requests.post', return_value=mock_response)
+
+    main(['-s', '-m', 'llama3.2', 'hello'])
+    captured = capsys.readouterr()
+    assert 'Hi' in captured.out
+    assert 'total duration:' in captured.err
+    assert 'eval rate:' in captured.err
+    assert 'tokens/s' in captured.err
