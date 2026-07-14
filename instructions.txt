@@ -63,3 +63,7 @@ To-do's from the plan have already been created. Do not create them again. Mark 
 WOrks great, commit and push to remote please
 ---
 using the existing agentic system files, initialize grok starter files please.
+---
+We need to do work in this local repo, but it seems to be different from the remote, and says there is a stash.
+---
+Drop the local .gitignore, and pull the remote changes.
