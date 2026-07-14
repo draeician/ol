@@ -21,6 +21,13 @@ from .config import Config
 
 MODEL_TYPES = ('text', 'vision')
 
+# Keep headroom for a reply so prompt-fit checks are not exactly at the
+# context edge (which yields empty done_reason=length responses).
+DEFAULT_REPLY_TOKEN_RESERVE = 512
+# Conservative pad per image when vision tokens cannot be counted exactly.
+DEFAULT_IMAGE_TOKEN_PAD = 768
+
+
 def get_env() -> Dict[str, str]:
     """Get environment variables for Ollama."""
     env = os.environ.copy()
@@ -30,6 +37,200 @@ def get_env() -> Dict[str, str]:
         # Add http:// prefix if not present
         env['OLLAMA_HOST'] = f"http://{env['OLLAMA_HOST']}"
     return env
+
+
+def get_ollama_base_url(env: Optional[Dict[str, str]] = None) -> str:
+    """Return the Ollama base URL from env or the local default."""
+    if env and 'OLLAMA_HOST' in env:
+        return env['OLLAMA_HOST'].rstrip('/')
+    return 'http://localhost:11434'
+
+
+def estimate_prompt_tokens(text: str) -> int:
+    """
+    Conservatively estimate token count without a tokenizer.
+
+    Uses ~3 characters per token so we tend to over-count and fail safe
+    when /api/tokenize is unavailable.
+    """
+    if not text:
+        return 0
+    return max(1, (len(text) + 2) // 3)
+
+
+def count_prompt_tokens(
+    base_url: str,
+    model: str,
+    prompt: str,
+    debug: bool = False,
+) -> tuple:
+    """
+    Count prompt tokens using Ollama /api/tokenize when available.
+
+    Returns:
+        tuple: (token_count, method) where method is "tokenize" or "estimate"
+    """
+    tokenize_url = f"{base_url.rstrip('/')}/api/tokenize"
+    try:
+        response = requests.post(
+            tokenize_url,
+            json={"model": model, "content": prompt},
+            timeout=60,
+        )
+        if response.status_code == 200:
+            data = response.json()
+            if isinstance(data.get('tokens'), list):
+                count = len(data['tokens'])
+                if debug:
+                    print(f"Token count via /api/tokenize: {count}")
+                return count, 'tokenize'
+            for key in ('input_tokens', 'count', 'tokens'):
+                if isinstance(data.get(key), int):
+                    if debug:
+                        print(f"Token count via /api/tokenize ({key}): {data[key]}")
+                    return data[key], 'tokenize'
+        elif debug:
+            print(
+                f"Tokenize unavailable ({response.status_code}); "
+                f"using conservative estimate",
+                file=sys.stderr,
+            )
+    except (requests.exceptions.RequestException, ValueError, TypeError) as e:
+        if debug:
+            print(
+                f"Tokenize failed ({e}); using conservative estimate",
+                file=sys.stderr,
+            )
+
+    count = estimate_prompt_tokens(prompt)
+    if debug:
+        print(f"Token count estimate: {count}")
+    return count, 'estimate'
+
+
+def get_effective_context_length(
+    base_url: str,
+    model: str,
+    debug: bool = False,
+) -> tuple:
+    """
+    Resolve the context window that will apply to this request.
+
+    Prefer the currently loaded runner context from /api/ps (what actually
+    fails in practice) over the model maximum from /api/show.
+
+    Returns:
+        tuple: (context_length, source_label)
+    """
+    base = base_url.rstrip('/')
+
+    try:
+        ps_resp = requests.get(f"{base}/api/ps", timeout=10)
+        ps_resp.raise_for_status()
+        for loaded in ps_resp.json().get('models') or []:
+            name = loaded.get('name') or loaded.get('model') or ''
+            if name != model:
+                continue
+            ctx = loaded.get('context_length')
+            if isinstance(ctx, int) and ctx > 0:
+                if debug:
+                    print(f"Context from /api/ps (loaded): {ctx}")
+                return ctx, 'currently loaded'
+    except (requests.exceptions.RequestException, ValueError, TypeError) as e:
+        if debug:
+            print(f"Could not read /api/ps: {e}", file=sys.stderr)
+
+    try:
+        show_resp = requests.post(
+            f"{base}/api/show",
+            json={"name": model},
+            timeout=30,
+        )
+        show_resp.raise_for_status()
+        info = show_resp.json().get('model_info') or {}
+        for key, value in info.items():
+            if key.endswith('.context_length') and isinstance(value, int) and value > 0:
+                if debug:
+                    print(f"Context from /api/show ({key}): {value}")
+                return value, 'model maximum'
+    except (requests.exceptions.RequestException, ValueError, TypeError) as e:
+        if debug:
+            print(f"Could not read /api/show: {e}", file=sys.stderr)
+
+    raise RuntimeError(
+        f"Could not determine context window for model '{model}' at {base}"
+    )
+
+
+def ensure_prompt_fits_context(
+    base_url: str,
+    model: str,
+    prompt: str,
+    image_count: int = 0,
+    reserve: int = DEFAULT_REPLY_TOKEN_RESERVE,
+    debug: bool = False,
+) -> None:
+    """
+    Hard-fail if the prompt cannot fit in the effective model context.
+
+    Always runs (not debug-only). Exits with status 1 on failure so the
+    problem cannot be ignored.
+    """
+    try:
+        context_length, context_source = get_effective_context_length(
+            base_url, model, debug=debug
+        )
+        prompt_tokens, method = count_prompt_tokens(
+            base_url, model, prompt, debug=debug
+        )
+    except RuntimeError as e:
+        print(f"Error: {e}", file=sys.stderr)
+        sys.exit(1)
+    except requests.exceptions.RequestException as e:
+        print(
+            f"Error: could not verify prompt size against model context: {e}",
+            file=sys.stderr,
+        )
+        sys.exit(1)
+
+    image_pad = max(0, image_count) * DEFAULT_IMAGE_TOKEN_PAD
+    total_needed = prompt_tokens + image_pad + reserve
+    available = context_length - reserve
+
+    if debug:
+        print("\n=== Context Check ===")
+        print(f"Model: {model}")
+        print(f"Host: {base_url}")
+        print(f"Context window: {context_length} ({context_source})")
+        print(f"Prompt tokens: {prompt_tokens} ({method})")
+        if image_pad:
+            print(f"Image token pad: {image_pad} ({image_count} image(s))")
+        print(f"Reserved for reply: {reserve}")
+        print(f"Total needed: {total_needed}")
+        print()
+
+    if total_needed > context_length:
+        method_note = (
+            "exact via /api/tokenize"
+            if method == 'tokenize'
+            else "conservative estimate (tokenize API unavailable)"
+        )
+        print(
+            "Error: prompt is too large for the model context window.\n"
+            f"  model: {model} @ {base_url}\n"
+            f"  prompt tokens: {prompt_tokens} ({method_note})\n"
+            f"  image pad: {image_pad}\n"
+            f"  reserved for reply: {reserve}\n"
+            f"  total needed: {total_needed}\n"
+            f"  context window: {context_length} ({context_source})\n"
+            f"  available for prompt+images: {max(0, available)}\n"
+            "\n"
+            "Refusing to send this request. The model would return an empty "
+            "or truncated answer (done_reason=length). Shrink the input or "
+            "raise the model's served context window.",
+            file=sys.stderr,
+        )
+        sys.exit(1)
 
 def get_hostname_for_filename(debug: bool = False) -> str:
     """
@@ -400,14 +601,20 @@ def call_ollama_api(model: str, prompt: str, temperature: float, image_files: Op
         env: Environment variables dict
         debug: Whether to show debug information
     """
-    # Determine API endpoint
-    if env and 'OLLAMA_HOST' in env:
-        base_url = env['OLLAMA_HOST'].rstrip('/')
-    else:
-        base_url = 'http://localhost:11434'
+    base_url = get_ollama_base_url(env)
     
     # Route to /api/chat if images are present, otherwise use /api/generate
     has_images = image_files and len(image_files) > 0
+    image_count = len(image_files) if image_files else 0
+
+    # Always-on failsafe: refuse requests that cannot fit the effective context.
+    ensure_prompt_fits_context(
+        base_url,
+        model,
+        prompt,
+        image_count=image_count,
+        debug=debug,
+    )
     
     if has_images:
         # Use /api/chat for image requests
@@ -481,6 +688,8 @@ def call_ollama_api(model: str, prompt: str, temperature: float, image_files: Op
         response.raise_for_status()
         
         # Stream and print response
+        emitted_any = False
+        done_reason = None
         for line in response.iter_lines():
             if line:
                 try:
@@ -488,11 +697,22 @@ def call_ollama_api(model: str, prompt: str, temperature: float, image_files: Op
                     # Handle both /api/generate and /api/chat response formats
                     if 'response' in data:
                         # /api/generate format
-                        print(data['response'], end='', flush=True)
-                    elif 'message' in data and isinstance(data['message'], dict) and 'content' in data['message']:
+                        chunk = data['response']
+                        if chunk:
+                            emitted_any = True
+                        print(chunk, end='', flush=True)
+                    elif (
+                        'message' in data
+                        and isinstance(data['message'], dict)
+                        and 'content' in data['message']
+                    ):
                         # /api/chat format
-                        print(data['message']['content'], end='', flush=True)
+                        chunk = data['message']['content']
+                        if chunk:
+                            emitted_any = True
+                        print(chunk, end='', flush=True)
                     if data.get('done', False):
+                        done_reason = data.get('done_reason')
                         break
                 except json.JSONDecodeError as e:
                     if debug:
@@ -502,6 +722,25 @@ def call_ollama_api(model: str, prompt: str, temperature: float, image_files: Op
                     continue
         
         print()  # Newline after response
+
+        # Fail closed if Ollama truncated: empty or partial output from length limit.
+        if done_reason == 'length':
+            if emitted_any:
+                print(
+                    "\nError: model output was truncated (done_reason=length).\n"
+                    "The response above may be incomplete or compromised. "
+                    "Reduce input size or increase the model's context window.",
+                    file=sys.stderr,
+                )
+            else:
+                print(
+                    "\nError: model returned no content (done_reason=length).\n"
+                    "The prompt likely filled the entire context window, so no "
+                    "reply tokens remained. Reduce input size or increase the "
+                    "model's served context window.",
+                    file=sys.stderr,
+                )
+            sys.exit(1)
         
     except requests.exceptions.RequestException as e:
         print(f"Error calling Ollama API: {e}", file=sys.stderr)

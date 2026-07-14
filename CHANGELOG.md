@@ -5,6 +5,18 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.1.31] - 2026-07-14
+
+### Added
+- Always-on context-window failsafe before generate/chat requests
+- Preflight compares prompt size to the effective model context (`/api/ps`
+  loaded context when available, otherwise `/api/show` maximum)
+- Uses `/api/tokenize` when the server supports it; otherwise a conservative
+  character-based estimate
+- Hard failure (stderr + exit 1) when the prompt cannot fit with reply headroom
+- Hard failure after streaming if Ollama returns `done_reason=length` (empty or
+  truncated output treated as compromised)
+
 ## [0.1.29] - 2026-07-10
 
 ### Added

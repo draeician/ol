@@ -5,16 +5,44 @@ import subprocess
 import base64
 from pathlib import Path
 from unittest.mock import patch, MagicMock
-from ol.cli import main, get_env, is_image_file, get_file_type_and_prompt, format_shell_command, save_modelfile, save_all_modelfiles, list_installed_models, sanitize_model_name, complete_model_type, complete_model_name, complete_model_type_then_model
+from ol.cli import (
+    main,
+    get_env,
+    is_image_file,
+    get_file_type_and_prompt,
+    format_shell_command,
+    save_modelfile,
+    save_all_modelfiles,
+    list_installed_models,
+    sanitize_model_name,
+    complete_model_type,
+    complete_model_name,
+    complete_model_type_then_model,
+    estimate_prompt_tokens,
+    ensure_prompt_fits_context,
+    call_ollama_api,
+    DEFAULT_REPLY_TOKEN_RESERVE,
+)
 
-def create_mock_streaming_response(response_text, done=True):
+
+@pytest.fixture(autouse=True)
+def _skip_context_preflight(mocker):
+    """Skip remote context preflight unless a test patches it explicitly."""
+    mocker.patch('ol.cli.ensure_prompt_fits_context')
+
+
+def create_mock_streaming_response(response_text, done=True, done_reason='stop'):
     """Helper to create a mock streaming response with line-delimited JSON."""
     lines = [
         json.dumps({"response": chunk, "done": False})
         for chunk in response_text
     ]
     if done:
-        lines.append(json.dumps({"response": "", "done": True}))
+        lines.append(
+            json.dumps(
+                {"response": "", "done": True, "done_reason": done_reason}
+            )
+        )
     return iter([line.encode('utf-8') for line in lines])
 
 def test_help(capsys):
@@ -1393,3 +1421,96 @@ def test_complete_model_type_then_model(mocker):
     assert 'vision' in combined
     assert 'llama3.2' in combined
     assert 'codellama' in combined
+
+
+def test_estimate_prompt_tokens_conservative():
+    """Estimator over-counts relative to ~4 chars/token English text."""
+    text = "x" * 9000
+    assert estimate_prompt_tokens(text) == 3000
+    assert estimate_prompt_tokens("") == 0
+
+
+def test_ensure_prompt_fits_context_refuses_oversized(mocker, capsys):
+    """Preflight must hard-fail when prompt cannot fit loaded context."""
+    mocker.patch(
+        'ol.cli.get_effective_context_length',
+        return_value=(8192, 'currently loaded'),
+    )
+    mocker.patch(
+        'ol.cli.count_prompt_tokens',
+        return_value=(8000, 'estimate'),
+    )
+
+    with pytest.raises(SystemExit) as exc:
+        ensure_prompt_fits_context(
+            'http://nomnom:11434',
+            'gemma4:latest',
+            'ignored because count is mocked',
+            reserve=DEFAULT_REPLY_TOKEN_RESERVE,
+        )
+    assert exc.value.code == 1
+    err = capsys.readouterr().err
+    assert 'prompt is too large for the model context window' in err
+    assert '8192' in err
+    assert 'currently loaded' in err
+    assert 'Refusing to send' in err
+
+
+def test_ensure_prompt_fits_context_allows_fit(mocker):
+    """Preflight allows prompts that fit with reply reserve."""
+    mocker.patch(
+        'ol.cli.get_effective_context_length',
+        return_value=(8192, 'currently loaded'),
+    )
+    mocker.patch(
+        'ol.cli.count_prompt_tokens',
+        return_value=(1000, 'tokenize'),
+    )
+    ensure_prompt_fits_context(
+        'http://localhost:11434',
+        'gemma4:latest',
+        'short',
+        reserve=DEFAULT_REPLY_TOKEN_RESERVE,
+    )
+
+
+def test_stream_done_reason_length_empty_exits(mocker, capsys):
+    """Empty done_reason=length responses must exit non-zero."""
+    mocker.patch('ol.cli.ensure_prompt_fits_context')
+    mock_response = MagicMock()
+    mock_response.iter_lines.return_value = iter([
+        json.dumps(
+            {"response": "", "done": True, "done_reason": "length"}
+        ).encode('utf-8')
+    ])
+    mock_response.raise_for_status = MagicMock()
+    mocker.patch('requests.post', return_value=mock_response)
+
+    with pytest.raises(SystemExit) as exc:
+        call_ollama_api('gemma4:latest', 'prompt', 0.7, env={})
+    assert exc.value.code == 1
+    err = capsys.readouterr().err
+    assert 'done_reason=length' in err
+    assert 'no content' in err
+
+
+def test_stream_done_reason_length_partial_exits(mocker, capsys):
+    """Truncated (partial) length responses must also exit non-zero."""
+    mocker.patch('ol.cli.ensure_prompt_fits_context')
+    mock_response = MagicMock()
+    mock_response.iter_lines.return_value = iter([
+        json.dumps({"response": "Partial", "done": False}).encode('utf-8'),
+        json.dumps(
+            {"response": "", "done": True, "done_reason": "length"}
+        ).encode('utf-8'),
+    ])
+    mock_response.raise_for_status = MagicMock()
+    mocker.patch('requests.post', return_value=mock_response)
+
+    with pytest.raises(SystemExit) as exc:
+        call_ollama_api('gemma4:latest', 'prompt', 0.7, env={})
+    assert exc.value.code == 1
+    captured = capsys.readouterr()
+    assert 'Partial' in captured.out
+    assert 'truncated' in captured.err
+    assert 'compromised' in captured.err

@@ -5,6 +5,12 @@ from io import StringIO
 from ol.cli import main
 
 
+@pytest.fixture(autouse=True)
+def _skip_context_preflight(mocker):
+    """Skip remote context preflight for STDIN routing tests."""
+    mocker.patch('ol.cli.ensure_prompt_fits_context')
+
+
 def test_stdin_input_used_as_prompt(mocker, capsys):
     """Test that STDIN input is used as prompt when no prompt argument provided."""
     mock_response = MagicMock()

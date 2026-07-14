@@ -63,6 +63,10 @@ Completion covers filesystem paths for `-f`/`--file`, `--output-dir`, and positi
 - Model selection and management
 - Temperature control for text and vision models
 - Debug output option showing API request details
+- Always-on context-window failsafe: refuses requests that cannot fit the
+  effective model context (loaded `/api/ps` context when available, else
+  `/api/show` maximum), and exits non-zero if the stream ends with
+  `done_reason=length` (empty or truncated / compromised output)
 - Automatic configuration initialization during installation
 - Display current configuration defaults when run without arguments
 
