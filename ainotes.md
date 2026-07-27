@@ -194,3 +194,12 @@ Vision and mixed-content requests now route through `/api/chat` endpoint with a 
 - PDFs count as “text” for model routing and configuration, while images still control when `/api/chat` is used.
 - Error handling is intentionally non-fatal for problematic PDFs to avoid breaking multi-file workflows.
 
+## Version 0.1.33: Keep / Unload / Loaded models
+
+### Changes
+- `-k`/`--keep`: pass `keep_alive: -1` on generate/chat so the model stays loaded forever
+- `-u`/`--unload`: standalone action; POST `/api/generate` with `keep_alive: 0` (model from `-m` or default text model)
+- `--ps`/`--loaded`: GET `/api/ps` and print NAME/SIZE/VRAM/CONTEXT/UNTIL table
+- `-l`/`--list` unchanged (installed models via `ollama list`)
+- `-k` and `-u` are mutually exclusive
+

@@ -14,6 +14,8 @@ from ol.cli import (
     save_modelfile,
     save_all_modelfiles,
     list_installed_models,
+    list_loaded_models,
+    unload_model,
     sanitize_model_name,
     complete_model_type,
     complete_model_name,
@@ -1571,3 +1573,128 @@ def test_stats_flag_prints_metrics_to_stderr(mocker, capsys):
     assert 'total duration:' in captured.err
     assert 'eval rate:' in captured.err
     assert 'tokens/s' in captured.err
+
+
+def test_keep_flag_sends_keep_alive_negative_one(mocker, capsys):
+    """-k/--keep sets keep_alive=-1 on the generate payload."""
+    captured_payload = {}
+
+    def fake_post(*args, **kwargs):
+        captured_payload['url'] = args[0] if args else kwargs.get('url')
+        captured_payload['payload'] = kwargs.get('json')
+        mock_response = MagicMock()
+        mock_response.iter_lines.return_value = iter([
+            json.dumps({"response": "ok", "done": False}).encode('utf-8'),
+            json.dumps({
+                "response": "",
+                "done": True,
+                "done_reason": "stop",
+            }).encode('utf-8'),
+        ])
+        mock_response.raise_for_status = MagicMock()
+        return mock_response
+
+    mocker.patch('requests.post', side_effect=fake_post)
+
+    main(['-k', '-m', 'llama3.2', 'hello'])
+    assert captured_payload['payload']['keep_alive'] == -1
+    assert 'ok' in capsys.readouterr().out
+
+
+def test_unload_flag_posts_keep_alive_zero(mocker, capsys):
+    """-u/--unload posts keep_alive=0 without requiring a prompt."""
+    captured = {}
+
+    mock_response = MagicMock()
+    mock_response.json.return_value = {
+        "model": "llama3.2",
+        "done": True,
+        "done_reason": "unload",
+    }
+    mock_response.raise_for_status = MagicMock()
+
+    def fake_post(*args, **kwargs):
+        captured['url'] = args[0] if args else kwargs.get('url')
+        captured['payload'] = kwargs.get('json')
+        return mock_response
+
+    mocker.patch('requests.post', side_effect=fake_post)
+
+    main(['-u', '-m', 'llama3.2'])
+    assert captured['payload']['keep_alive'] == 0
+    assert captured['payload']['model'] == 'llama3.2'
+    assert 'Unloaded model: llama3.2' in capsys.readouterr().out
+
+
+def test_unload_and_keep_together_errors(mocker, capsys):
+    """-k and -u together must exit with an error."""
+    with pytest.raises(SystemExit) as exc:
+        main(['-k', '-u', '-m', 'llama3.2'])
+    assert exc.value.code == 1
+    assert 'cannot use --keep and --unload together' in capsys.readouterr().err
+
+
+def test_ps_lists_loaded_models(mocker, capsys):
+    """--ps/--loaded lists models from /api/ps."""
+    mock_response = MagicMock()
+    mock_response.json.return_value = {
+        "models": [
+            {
+                "name": "llama3.2:latest",
+                "size": 4 * 1024 ** 3,
+                "size_vram": 3 * 1024 ** 3,
+                "context_length": 8192,
+                "expires_at": "9999-12-31T23:59:59Z",
+            }
+        ]
+    }
+    mock_response.raise_for_status = MagicMock()
+    mocker.patch('requests.get', return_value=mock_response)
+
+    main(['--ps'])
+    out = capsys.readouterr().out
+    assert 'NAME' in out
+    assert 'llama3.2:latest' in out
+    assert 'Forever' in out
+    assert '8192' in out
+
+
+def test_loaded_alias_lists_loaded_models(mocker, capsys):
+    """--loaded is an alias for --ps."""
+    mock_response = MagicMock()
+    mock_response.json.return_value = {"models": []}
+    mock_response.raise_for_status = MagicMock()
+    mock_get = mocker.patch('requests.get', return_value=mock_response)
+
+    main(['--loaded'])
+    assert 'No models currently loaded.' in capsys.readouterr().out
+    assert mock_get.called
+    assert mock_get.call_args[0][0].endswith('/api/ps')
+
+
+def test_list_loaded_models_empty(mocker, capsys):
+    """list_loaded_models prints a clear message when nothing is loaded."""
+    mock_response = MagicMock()
+    mock_response.json.return_value = {"models": []}
+    mock_response.raise_for_status = MagicMock()
+    mocker.patch('requests.get', return_value=mock_response)
+
+    list_loaded_models(env={})
+    assert 'No models currently loaded.' in capsys.readouterr().out
+
+
+def test_unload_model_helper(mocker, capsys):
+    """unload_model posts keep_alive=0 to /api/generate."""
+    mock_response = MagicMock()
+    mock_response.json.return_value = {"done": True, "done_reason": "unload"}
+    mock_response.raise_for_status = MagicMock()
+    mock_post = mocker.patch('requests.post', return_value=mock_response)
+
+    unload_model('codellama', env={})
+    payload = mock_post.call_args.kwargs['json']
+    assert payload == {
+        "model": "codellama",
+        "keep_alive": 0,
+        "stream": False,
+    }
+    assert 'Unloaded model: codellama' in capsys.readouterr().out

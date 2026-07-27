@@ -67,3 +67,9 @@ using the existing agentic system files, initialize grok starter files please.
 We need to do work in this local repo, but it seems to be different from the remote, and says there is a stash.
 ---
 Drop the local .gitignore, and pull the remote changes.
+i want to add a -k or --k and a -u or -s (for --unload or --summary)  So when a model is being called, it will tell ollama to keep it loaded forever.  And perhaps a -l or --list if one is not in there so we can see on the end point side what model is loaded perhaps?
+---
+1.  use -u, and the --ps and --loaded would be fine for loaded models.
+---
+Works.. commit and push.
+---

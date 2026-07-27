@@ -16,6 +16,7 @@ Key Milestones:
 - Added Modelfile download and save functionality
 
 Recent Changes:
+- Version 0.1.33: Added -k/--keep (keep_alive=-1), -u/--unload (keep_alive=0), and --ps/--loaded (GET /api/ps) for endpoint memory management
 - Initialized Grok starter files from existing crules swarm modes and project_spec:
   - AGENTS.md (canonical, status [CUSTOMIZED])
   - GROK.md (thin Grok entrypoint)
@@ -140,4 +141,3 @@ Repo sync status (2026-07-14):
 - Local main fast-forwarded to origin/main at 57f884d (0.1.30).
 - Discarded local .gitignore edits; pulled remote .gitignore and feature commits.
 - Temporary SOP stash dropped after recording prompts; no other stashes remain.
-

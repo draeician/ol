@@ -344,6 +344,141 @@ def list_models() -> None:
         print(f"Error listing models: {e}", file=sys.stderr)
         sys.exit(1)
 
+
+def _format_bytes(num_bytes: Optional[int]) -> str:
+    """Format a byte count as a human-readable size string."""
+    if num_bytes is None:
+        return '-'
+    try:
+        value = float(num_bytes)
+    except (TypeError, ValueError):
+        return '-'
+    units = ('B', 'KB', 'MB', 'GB', 'TB')
+    for unit in units:
+        if value < 1024.0 or unit == units[-1]:
+            if unit == 'B':
+                return f"{int(value)} {unit}"
+            return f"{value:.1f} {unit}"
+        value /= 1024.0
+    return f"{value:.1f} TB"
+
+
+def _format_expires_at(expires_at: Optional[str]) -> str:
+    """Format an Ollama expires_at timestamp for display."""
+    if not expires_at:
+        return '-'
+    # Far-future / sentinel values mean keep forever
+    if expires_at.startswith('0001-') or '9999' in expires_at[:4]:
+        return 'Forever'
+    try:
+        # Handle trailing Z
+        normalized = expires_at.replace('Z', '+00:00')
+        dt = datetime.fromisoformat(normalized)
+        return dt.strftime('%Y-%m-%d %H:%M:%S %Z').strip() or expires_at
+    except (TypeError, ValueError):
+        return expires_at
+
+
+def list_loaded_models(
+    env: Optional[Dict[str, str]] = None,
+    debug: bool = False,
+) -> None:
+    """
+    List models currently loaded in memory via GET /api/ps.
+
+    Args:
+        env: Environment variables dict (uses get_env() if None)
+        debug: Whether to show debug information
+    """
+    if env is None:
+        env = get_env()
+    base_url = get_ollama_base_url(env)
+    api_url = f"{base_url}/api/ps"
+
+    if debug:
+        print("=== Debug: Listing loaded models ===")
+        print(f"GET {api_url}")
+
+    try:
+        response = requests.get(api_url, timeout=10)
+        response.raise_for_status()
+        models = response.json().get('models') or []
+    except (requests.exceptions.RequestException, ValueError, TypeError) as e:
+        print(f"Error listing loaded models: {e}", file=sys.stderr)
+        sys.exit(1)
+
+    if not models:
+        print("No models currently loaded.")
+        return
+
+    headers = ('NAME', 'SIZE', 'VRAM', 'CONTEXT', 'UNTIL')
+    rows = []
+    for loaded in models:
+        name = loaded.get('name') or loaded.get('model') or '-'
+        size = _format_bytes(loaded.get('size'))
+        vram = _format_bytes(loaded.get('size_vram'))
+        ctx = loaded.get('context_length')
+        ctx_str = str(ctx) if isinstance(ctx, int) else '-'
+        until = _format_expires_at(loaded.get('expires_at'))
+        rows.append((name, size, vram, ctx_str, until))
+
+    widths = [len(h) for h in headers]
+    for row in rows:
+        for i, cell in enumerate(row):
+            widths[i] = max(widths[i], len(cell))
+
+    header_line = '  '.join(h.ljust(widths[i]) for i, h in enumerate(headers))
+    print(header_line)
+    for row in rows:
+        print('  '.join(cell.ljust(widths[i]) for i, cell in enumerate(row)))
+
+
+def unload_model(
+    model: str,
+    env: Optional[Dict[str, str]] = None,
+    debug: bool = False,
+) -> None:
+    """
+    Unload a model from memory via keep_alive=0.
+
+    Args:
+        model: Model name to unload
+        env: Environment variables dict (uses get_env() if None)
+        debug: Whether to show debug information
+    """
+    if env is None:
+        env = get_env()
+    base_url = get_ollama_base_url(env)
+    api_url = f"{base_url}/api/generate"
+    payload = {
+        "model": model,
+        "keep_alive": 0,
+        "stream": False,
+    }
+
+    if debug:
+        print("=== Debug: Unloading model ===")
+        print(f"URL: {api_url}")
+        print(f"Payload: {json.dumps(payload, indent=2)}")
+
+    try:
+        response = requests.post(api_url, json=payload, timeout=60)
+        response.raise_for_status()
+        data = response.json()
+        if debug:
+            print(f"Response: {json.dumps(data, indent=2)}")
+        done_reason = data.get('done_reason')
+        if done_reason and done_reason != 'unload':
+            print(
+                f"Warning: unexpected done_reason '{done_reason}' "
+                f"when unloading '{model}'",
+                file=sys.stderr,
+            )
+        print(f"Unloaded model: {model}")
+    except (requests.exceptions.RequestException, ValueError, TypeError) as e:
+        print(f"Error unloading model '{model}': {e}", file=sys.stderr)
+        sys.exit(1)
+
 def is_binary_file(file_path: str) -> bool:
     """Check if a file is binary by reading its first few bytes."""
     try:
@@ -667,7 +802,8 @@ def format_performance_stats(metrics: Dict) -> str:
 
 def call_ollama_api(model: str, prompt: str, temperature: float, image_files: Optional[List[str]] = None, 
                     text_files: Optional[List[str]] = None, env: Optional[Dict[str, str]] = None, 
-                    debug: bool = False, stats: bool = False) -> None:
+                    debug: bool = False, stats: bool = False,
+                    keep_alive: Optional[int] = None) -> None:
     """
     Call Ollama API with the given parameters.
     
@@ -682,6 +818,7 @@ def call_ollama_api(model: str, prompt: str, temperature: float, image_files: Op
         env: Environment variables dict
         debug: Whether to show debug information
         stats: Whether to print Ollama-style performance metrics to stderr
+        keep_alive: Optional keep_alive value (-1 keeps the model loaded forever)
     """
     base_url = get_ollama_base_url(env)
     
@@ -736,6 +873,9 @@ def call_ollama_api(model: str, prompt: str, temperature: float, image_files: Op
         # Ensure images field is NOT included for text-only requests
         if 'images' in payload:
             del payload['images']
+
+    if keep_alive is not None:
+        payload["keep_alive"] = keep_alive
     
     if debug:
         print("\n=== API Request ===")
@@ -837,7 +977,8 @@ def call_ollama_api(model: str, prompt: str, temperature: float, image_files: Op
 
 def run_ollama(prompt: str, model: str = None, files: Optional[List[str]] = None, 
                temperature: Optional[float] = None, debug: bool = False, 
-               cli_host_provided: bool = False, stats: bool = False) -> None:
+               cli_host_provided: bool = False, stats: bool = False,
+               keep: bool = False) -> None:
     """
     Run Ollama with the given prompt and optional files.
     
@@ -849,6 +990,7 @@ def run_ollama(prompt: str, model: str = None, files: Optional[List[str]] = None
         debug: Whether to show debug information
         cli_host_provided: Whether CLI host/port flags were provided
         stats: Whether to print performance metrics after the response
+        keep: If True, keep the model loaded forever (keep_alive=-1)
     """
     config = Config()
     
@@ -1016,6 +1158,7 @@ def run_ollama(prompt: str, model: str = None, files: Optional[List[str]] = None
             env,
             debug,
             stats,
+            keep_alive=-1 if keep else None,
         )
         
         # Only save last used model after successful execution
@@ -1174,6 +1317,12 @@ def main(argv: Optional[Sequence[str]] = None) -> None:
               ol -f prompt.txt
               ol --file prompt.txt main.py
               
+              # Keep model loaded / unload / list loaded:
+              ol -k -m llama3.2 "Your prompt"
+              ol -u -m llama3.2
+              ol --ps
+              ol --loaded -h server -p 11434
+              
               # STDIN input (piping/redirection):
               echo "What is Python?" | ol
               ol < file.txt
@@ -1199,6 +1348,8 @@ def main(argv: Optional[Sequence[str]] = None) -> None:
     # Existing arguments
     parser.add_argument('-l', '--list', action='store_true', 
                        help='List available models (works with both local and remote instances)')
+    parser.add_argument('--ps', '--loaded', dest='loaded', action='store_true',
+                       help='List models currently loaded in memory on the Ollama endpoint')
     model_arg = parser.add_argument(
         '-m', '--model',
         help='Model to use (default: from config). Vision models need absolute paths for remote.',
@@ -1208,6 +1359,10 @@ def main(argv: Optional[Sequence[str]] = None) -> None:
                        help='Show debug information including API request details and equivalent shell commands')
     parser.add_argument('-s', '--stats', action='store_true',
                        help='Show performance metrics after the response (Ollama --verbose style)')
+    parser.add_argument('-k', '--keep', action='store_true',
+                       help='Keep the model loaded in memory forever after this request (keep_alive=-1)')
+    parser.add_argument('-u', '--unload', action='store_true',
+                       help='Unload a model from memory (uses -m or the default text model)')
     file_arg = parser.add_argument(
         '-f', '--file', metavar='PROMPTFILE',
         help='Read prompt text from a file',
@@ -1334,6 +1489,18 @@ def main(argv: Optional[Sequence[str]] = None) -> None:
         list_models()
         return
 
+    if args.loaded:
+        list_loaded_models(get_env(), args.debug)
+        return
+
+    if args.unload:
+        if args.keep:
+            print("Error: cannot use --keep and --unload together", file=sys.stderr)
+            sys.exit(1)
+        model = args.model or config.get_model_for_type('text')
+        unload_model(model, get_env(), args.debug)
+        return
+
     # Validate --all requires --save-modelfile
     if args.all and not args.save_modelfile:
         print("Error: --all requires --save-modelfile", file=sys.stderr)
@@ -1451,6 +1618,7 @@ def main(argv: Optional[Sequence[str]] = None) -> None:
         args.debug,
         cli_host_provided,
         args.stats,
+        args.keep,
     )
 
 if __name__ == '__main__':

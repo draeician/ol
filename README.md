@@ -109,6 +109,16 @@ For local Ollama instances, simply run commands without the `OLLAMA_HOST` variab
 # List available models
 ol -l
 
+# List models currently loaded in memory
+ol --ps
+ol --loaded
+
+# Keep a model loaded forever after this request
+ol -k -m llama3.2 "Your prompt here"
+
+# Unload a model from memory
+ol -u -m llama3.2
+
 # Use a specific model
 ol -m llama3.2 "Your prompt here"
 
@@ -139,9 +149,12 @@ ol -m llama3.2:latest --save-modelfile --output-dir ~/.config/ol/templates
 ## Arguments
 
 - `-l, --list`: List available models (works with both local and remote instances)
+- `--ps, --loaded`: List models currently loaded in memory on the Ollama endpoint
 - `-m MODEL, --model MODEL`: Specify the model to use (default: from config)
 - `-d, --debug`: Show debug information including API request details
 - `-s, --stats`: Show performance metrics after the response (Ollama `--verbose` style)
+- `-k, --keep`: Keep the model loaded in memory forever after this request
+- `-u, --unload`: Unload a model from memory (uses `-m` or the default text model)
 - `-f PROMPTFILE, --file PROMPTFILE`: Read prompt text from a file (mutually exclusive with a positional prompt argument)
 - `-h HOST, --host HOST`: Ollama host (default: localhost). Overrides OLLAMA_HOST for this command.
 - `-p PORT, --port PORT`: Ollama port (default: 11434). Overrides OLLAMA_HOST for this command.

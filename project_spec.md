@@ -14,9 +14,12 @@ OLLAMA_HOST=http://server:11434 ol [options] "PROMPT" [FILES...]
 
 ## Arguments
 - `-l, --list`                    : List models (works with both local and remote instances)
+- `--ps, --loaded`                : List models currently loaded in memory on the Ollama endpoint
 - `-m MODEL, --model MODEL`       : Model to use for this REPL (default: from config)
 - `-d, --debug`                   : Show debug information including API request details
 - `-s, --stats`                   : Show performance metrics after the response (Ollama --verbose style)
+- `-k, --keep`                    : Keep the model loaded forever after this request (keep_alive=-1)
+- `-u, --unload`                  : Unload a model from memory (uses -m or default text model)
 - `-f PROMPTFILE, --file PROMPTFILE`: Read prompt text from a file (mutually exclusive with a positional prompt)
 - `-h HOST, --host HOST`          : Ollama host (default: localhost). Overrides OLLAMA_HOST for this command.
 - `-p PORT, --port PORT`          : Ollama port (default: 11434). Overrides OLLAMA_HOST for this command.
@@ -65,6 +68,9 @@ Completion covers filesystem paths for `-f`/`--file`, `--output-dir`, and positi
 - Temperature control for text and vision models
 - Debug output option showing API request details
 - `-s`/`--stats` performance metrics (Ollama `--verbose` style) after responses
+- `-k`/`--keep` to keep a model loaded forever after a request (`keep_alive=-1`)
+- `-u`/`--unload` to unload a model from memory (`keep_alive=0`)
+- `--ps`/`--loaded` to list models currently loaded via `/api/ps`
 - Always-on context-window failsafe: refuses requests that cannot fit the
   effective model context (loaded `/api/ps` context when available, else
   `/api/show` maximum), and exits non-zero if the stream ends with
@@ -242,8 +248,11 @@ ol [options] [prompt] [files...]
 
 Options:
   -l, --list                      List available models
+  --ps, --loaded                  List models currently loaded in memory
   -m, --model MODEL               Model to use (default: from config)
   -d, --debug                     Show debug information including API request details
+  -k, --keep                      Keep model loaded forever after this request
+  -u, --unload                    Unload a model from memory
   -h, --host HOST                 Ollama host (default: localhost). Overrides OLLAMA_HOST and configured hosts for this command.
   -p, --port PORT                 Ollama port (default: 11434). Overrides OLLAMA_HOST and configured hosts for this command.
   --set-default-model TYPE MODEL  Set default model for type (text or vision)
