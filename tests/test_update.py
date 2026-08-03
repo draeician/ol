@@ -16,7 +16,7 @@ def test_update_command_no_shell_execution(mocker, capsys):
     )
     mock_vm.format_update_message.return_value = "Update available: 0.1.24 → 0.1.25"
     
-    mocker.patch('ol.cli.VersionManager', return_value=mock_vm)
+    mocker.patch('ol.version.VersionManager', return_value=mock_vm)
     
     # Mock subprocess.run to verify it's called with argument list, not shell=True
     mock_run = mocker.patch('subprocess.run')
@@ -53,7 +53,7 @@ def test_update_command_handles_spaces_in_url(mocker, capsys):
     )
     mock_vm.format_update_message.return_value = "Update available"
     
-    mocker.patch('ol.cli.VersionManager', return_value=mock_vm)
+    mocker.patch('ol.version.VersionManager', return_value=mock_vm)
     
     mock_run = mocker.patch('subprocess.run')
     mock_run.return_value = MagicMock(returncode=0)
@@ -80,7 +80,7 @@ def test_update_command_failure_surfaces_error(mocker, capsys):
     )
     mock_vm.format_update_message.return_value = "Update available"
     
-    mocker.patch('ol.cli.VersionManager', return_value=mock_vm)
+    mocker.patch('ol.version.VersionManager', return_value=mock_vm)
     
     # Mock subprocess.run to raise CalledProcessError
     mock_run = mocker.patch('subprocess.run')
@@ -111,7 +111,7 @@ def test_update_command_invalid_parsing_handled(mocker, capsys):
     )
     mock_vm.format_update_message.return_value = "Update available"
     
-    mocker.patch('ol.cli.VersionManager', return_value=mock_vm)
+    mocker.patch('ol.version.VersionManager', return_value=mock_vm)
     
     # Should exit with code 1 on parsing error
     with pytest.raises(SystemExit) as exc_info:

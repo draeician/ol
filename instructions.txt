@@ -73,3 +73,8 @@ i want to add a -k or --k and a -u or -s (for --unload or --summary)  So when a 
 ---
 Works.. commit and push.
 ---
+Examining the local repo as opposed to the remote, I think the local is more advanced, but I don't remember what I was doing.  Please remind me.
+---
+reconcile please.
+---
+commit and push,

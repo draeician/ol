@@ -17,7 +17,7 @@ from pathlib import Path
 from typing import List, Optional, Sequence, Dict
 from urllib.parse import urlparse
 import pypdf
-from .config import Config
+from .config import Config, normalize_ollama_host
 
 MODEL_TYPES = ('text', 'vision')
 
@@ -32,17 +32,15 @@ def get_env() -> Dict[str, str]:
     """Get environment variables for Ollama."""
     env = os.environ.copy()
     if 'OLLAMA_HOST' in env:
-        if env['OLLAMA_HOST'].startswith('http://') or env['OLLAMA_HOST'].startswith('https://'):
-            return env
-        # Add http:// prefix if not present
-        env['OLLAMA_HOST'] = f"http://{env['OLLAMA_HOST']}"
+        # Scheme + default port 11434 (matches ollama CLI; raw HTTP needs it).
+        env['OLLAMA_HOST'] = normalize_ollama_host(env['OLLAMA_HOST'])
     return env
 
 
 def get_ollama_base_url(env: Optional[Dict[str, str]] = None) -> str:
     """Return the Ollama base URL from env or the local default."""
     if env and 'OLLAMA_HOST' in env:
-        return env['OLLAMA_HOST'].rstrip('/')
+        return normalize_ollama_host(env['OLLAMA_HOST'])
     return 'http://localhost:11434'
 
 
@@ -70,7 +68,8 @@ def count_prompt_tokens(
     Returns:
         tuple: (token_count, method) where method is "tokenize" or "estimate"
     """
-    tokenize_url = f"{base_url.rstrip('/')}/api/tokenize"
+    base_url = normalize_ollama_host(base_url)
+    tokenize_url = f"{base_url}/api/tokenize"
     try:
         response = requests.post(
             tokenize_url,
@@ -122,7 +121,8 @@ def get_effective_context_length(
     Returns:
         tuple: (context_length, source_label)
     """
-    base = base_url.rstrip('/')
+    base = normalize_ollama_host(base_url)
+    errors = []
 
     try:
         ps_resp = requests.get(f"{base}/api/ps", timeout=10)
@@ -132,11 +132,21 @@ def get_effective_context_length(
             if name != model:
                 continue
             ctx = loaded.get('context_length')
-            if isinstance(ctx, int) and ctx > 0:
+            ctx_int = None
+            if isinstance(ctx, int):
+                ctx_int = ctx
+            elif ctx is not None:
+                # Some Ollama builds may emit numeric strings.
+                try:
+                    ctx_int = int(ctx)
+                except (TypeError, ValueError):
+                    ctx_int = None
+            if ctx_int is not None and ctx_int > 0:
                 if debug:
-                    print(f"Context from /api/ps (loaded): {ctx}")
-                return ctx, 'currently loaded'
+                    print(f"Context from /api/ps (loaded): {ctx_int}")
+                return ctx_int, 'currently loaded'
     except (requests.exceptions.RequestException, ValueError, TypeError) as e:
+        errors.append(f"/api/ps: {e}")
         if debug:
             print(f"Could not read /api/ps: {e}", file=sys.stderr)
 
@@ -147,18 +157,58 @@ def get_effective_context_length(
             timeout=30,
         )
         show_resp.raise_for_status()
-        info = show_resp.json().get('model_info') or {}
+        show_data = show_resp.json()
+        info = show_data.get('model_info') or {}
         for key, value in info.items():
-            if key.endswith('.context_length') and isinstance(value, int) and value > 0:
+            if not key.endswith('.context_length'):
+                continue
+            ctx_int = value if isinstance(value, int) else None
+            if ctx_int is None:
+                try:
+                    ctx_int = int(value)
+                except (TypeError, ValueError):
+                    continue
+            if ctx_int > 0:
                 if debug:
-                    print(f"Context from /api/show ({key}): {value}")
-                return value, 'model maximum'
+                    print(f"Context from /api/show ({key}): {ctx_int}")
+                return ctx_int, 'model maximum'
+
+        # Fallback: num_ctx in parameters / modelfile text.
+        for field in ('parameters', 'modelfile'):
+            text = show_data.get(field)
+            if not isinstance(text, str):
+                continue
+            for line in text.splitlines():
+                parts = line.strip().split()
+                raw = None
+                if len(parts) >= 2 and parts[0].lower() == 'num_ctx':
+                    raw = parts[1]
+                elif (
+                    len(parts) >= 3
+                    and parts[0].lower() == 'parameter'
+                    and parts[1].lower() == 'num_ctx'
+                ):
+                    raw = parts[2]
+                if raw is None:
+                    continue
+                try:
+                    ctx_int = int(raw)
+                except ValueError:
+                    continue
+                if ctx_int > 0:
+                    if debug:
+                        print(f"Context from /api/show {field} num_ctx: {ctx_int}")
+                    return ctx_int, 'model parameters'
     except (requests.exceptions.RequestException, ValueError, TypeError) as e:
+        errors.append(f"/api/show: {e}")
         if debug:
             print(f"Could not read /api/show: {e}", file=sys.stderr)
 
+    detail = ""
+    if errors:
+        detail = " (" + "; ".join(errors) + ")"
     raise RuntimeError(
-        f"Could not determine context window for model '{model}' at {base}"
+        f"Could not determine context window for model '{model}' at {base}{detail}"
     )
 
 
@@ -176,6 +226,7 @@ def ensure_prompt_fits_context(
     Always runs (not debug-only). Exits with status 1 on failure so the
     problem cannot be ignored.
     """
+    base_url = normalize_ollama_host(base_url)
     try:
         context_length, context_source = get_effective_context_length(
             base_url, model, debug=debug

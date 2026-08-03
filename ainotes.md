@@ -203,3 +203,15 @@ Vision and mixed-content requests now route through `/api/chat` endpoint with a 
 - `-l`/`--list` unchanged (installed models via `ollama list`)
 - `-k` and `-u` are mutually exclusive
 
+## Version 0.1.34: Host port normalization for context preflight
+
+### Problem
+- Configured remote hosts without an explicit port (e.g. `http://192.168.22.53`) worked for some paths that already normalized, but context-window preflight used the raw URL and hit port 80 instead of Ollama's default 11434.
+
+### Changes
+- Added `normalize_ollama_host()` in `config.py` (scheme + default port 11434).
+- Applied on config host set/get, `get_env()` / `OLLAMA_HOST`, and context-window lookup helpers.
+- Context lookup also accepts numeric-string `context_length` and falls back to `num_ctx` in parameters/modelfile.
+- Context-window failure messages include `/api/ps` and `/api/show` error detail.
+- Reconciled on top of remote 0.1.33 keep/unload/ps; version bumped to 0.1.34 (not a second 0.1.33).
+

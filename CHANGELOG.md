@@ -5,6 +5,17 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.1.34] - 2026-08-02
+
+### Fixed
+- Host normalization now adds Ollama's default port `11434` when omitted
+  (e.g. `http://192.168.22.53` → `http://192.168.22.53:11434`)
+- Context-window preflight failed on remote hosts configured without a port
+  because raw HTTP requests hit port 80 instead of 11434
+- Applies on config set/get, `OLLAMA_HOST` / `get_env()`, and context lookup
+- Context-window errors now include the underlying `/api/ps` and `/api/show`
+  failure details for easier diagnosis
+
 ## [0.1.33] - 2026-07-27
 
 ### Added

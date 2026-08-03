@@ -2,7 +2,7 @@ import pytest
 import yaml
 import tempfile
 from pathlib import Path
-from ol.config import Config, deep_merge, DEFAULT_CONFIG
+from ol.config import Config, deep_merge, DEFAULT_CONFIG, normalize_ollama_host
 
 
 def test_deep_merge_preserves_nested_defaults():
@@ -252,8 +252,22 @@ def test_set_host_for_type(tmp_path, monkeypatch):
     assert config.get_host_for_type('vision') == 'http://remote-server:11434'
 
 
+def test_normalize_ollama_host_adds_default_port():
+    """Hosts without a port must get Ollama's default 11434."""
+    assert normalize_ollama_host('192.168.22.53') == 'http://192.168.22.53:11434'
+    assert normalize_ollama_host('http://192.168.22.53') == 'http://192.168.22.53:11434'
+    assert normalize_ollama_host('http://aether') == 'http://aether:11434'
+    assert normalize_ollama_host('localhost') == 'http://localhost:11434'
+    # Already has port — leave alone
+    assert normalize_ollama_host('http://192.168.22.53:11434') == 'http://192.168.22.53:11434'
+    assert normalize_ollama_host('server:12000') == 'http://server:12000'
+    assert normalize_ollama_host('https://secure:443') == 'https://secure:443'
+    # Trailing slash stripped
+    assert normalize_ollama_host('http://host:11434/') == 'http://host:11434'
+
+
 def test_host_normalization(tmp_path, monkeypatch):
-    """Test that hosts are normalized (http:// prefix added if missing)."""
+    """Test that hosts get scheme and default Ollama port when missing."""
     monkeypatch.setattr('ol.config.Path.home', lambda: tmp_path)
     config = Config()
     
@@ -269,9 +283,30 @@ def test_host_normalization(tmp_path, monkeypatch):
     config.set_host_for_type('text', 'https://secure-server:11434')
     assert config.get_host_for_type('text') == 'https://secure-server:11434'
     
-    # Test localhost without port
+    # Test localhost without port → default Ollama port
     config.set_host_for_type('vision', 'localhost')
-    assert config.get_host_for_type('vision') == 'http://localhost'
+    assert config.get_host_for_type('vision') == 'http://localhost:11434'
+
+    # Bare IP without port (the remote-host failure case)
+    config.set_host_for_type('text', 'http://192.168.22.53')
+    assert config.get_host_for_type('text') == 'http://192.168.22.53:11434'
+
+
+def test_get_host_normalizes_legacy_config_without_port(tmp_path, monkeypatch):
+    """Older configs that stored hosts without a port still work at runtime."""
+    monkeypatch.setattr('ol.config.Path.home', lambda: tmp_path)
+    config_dir = tmp_path / '.config' / 'ol'
+    config_dir.mkdir(parents=True)
+    with open(config_dir / 'config.yaml', 'w') as f:
+        yaml.safe_dump(
+            {
+                'hosts': {'text': 'http://192.168.22.53', 'vision': None},
+                'models': {'text': 'qwen3.6:latest'},
+            },
+            f,
+        )
+    config = Config()
+    assert config.get_host_for_type('text') == 'http://192.168.22.53:11434'
 
 
 def test_get_model_and_host_for_type(tmp_path, monkeypatch):

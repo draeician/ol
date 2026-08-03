@@ -1,6 +1,6 @@
 Project Status Summary:
 
-Current Version: 0.1.29 (Stable)
+Current Version: 0.1.34 (host port normalization)
 
 Key Milestones:
 - Initial project setup and structure completed
@@ -141,3 +141,12 @@ Repo sync status (2026-07-14):
 - Local main fast-forwarded to origin/main at 57f884d (0.1.30).
 - Discarded local .gitignore edits; pulled remote .gitignore and feature commits.
 - Temporary SOP stash dropped after recording prompts; no other stashes remain.
+
+Repo sync status (2026-08-02):
+- Fast-forwarded local main to origin/main at 72c4021 (0.1.33: -k/--keep, -u/--unload, --ps/--loaded).
+- Reapplied stashed host-normalization WIP on top; retargeted as 0.1.34 (not another 0.1.33).
+- Host normalization adds default port 11434 when omitted (normalize_ollama_host).
+- Fixes context-window preflight on remote hosts without a port (was hitting :80).
+- Richer context lookup (numeric string ctx, num_ctx from parameters/modelfile).
+- Better /api/ps and /api/show error detail in context-window failures.
+- Committed and pushed as 0.1.34 (host port normalization on top of 0.1.33).

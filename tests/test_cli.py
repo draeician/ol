@@ -8,6 +8,7 @@ from unittest.mock import patch, MagicMock
 from ol.cli import (
     main,
     get_env,
+    get_ollama_base_url,
     is_image_file,
     get_file_type_and_prompt,
     format_shell_command,
@@ -21,6 +22,7 @@ from ol.cli import (
     complete_model_name,
     complete_model_type_then_model,
     estimate_prompt_tokens,
+    get_effective_context_length,
     ensure_prompt_fits_context,
     call_ollama_api,
     format_performance_stats,
@@ -30,9 +32,17 @@ from ol.cli import (
 
 
 @pytest.fixture(autouse=True)
-def _skip_context_preflight(mocker):
-    """Skip remote context preflight unless a test patches it explicitly."""
+def _isolate_cli_runtime(mocker, tmp_path, monkeypatch):
+    """
+    Keep CLI unit tests hermetic.
+
+    - Skip remote context preflight unless a test patches it explicitly.
+    - Use a temp home so ~/.config/ol hosts do not leak into URL assertions.
+    - Clear OLLAMA_HOST each test (main() may set it from config).
+    """
     mocker.patch('ol.cli.ensure_prompt_fits_context')
+    monkeypatch.setattr('ol.config.Path.home', lambda: tmp_path)
+    monkeypatch.delenv('OLLAMA_HOST', raising=False)
 
 
 def create_mock_streaming_response(response_text, done=True, done_reason='stop'):
@@ -330,6 +340,7 @@ def test_default_prompts(mocker, tmp_path, capsys):
     config = MagicMock()
     config.get_model_for_type.return_value = "llama2"
     config.get_temperature_for_type.return_value = 0.7
+    config.get_host_for_type.return_value = None
     mocker.patch('ol.cli.Config', return_value=config)
     
     mock_response = MagicMock()
@@ -354,6 +365,7 @@ def test_missing_config(mocker, capsys):
     mock_config = MagicMock()
     mock_config.get_model_for_type.return_value = "llama2"
     mock_config.get_temperature_for_type.return_value = 0.7
+    mock_config.get_host_for_type.return_value = None
     mocker.patch('ol.cli.Config', return_value=mock_config)
     
     mock_response = MagicMock()
@@ -382,8 +394,9 @@ def test_ollama_host_handling(mocker, capsys):
         assert call_args[0][0] == 'http://test:11434/api/generate'
 
 # Image Processing Tests
-def test_image_processing_local(mocker, tmp_path, capsys):
+def test_image_processing_local(mocker, tmp_path, monkeypatch, capsys):
     """Test handling of local image files via HTTP API (uses /api/chat)."""
+    monkeypatch.setattr('ol.config.Path.home', lambda: tmp_path)
     mock_response = MagicMock()
     mock_response.iter_lines.return_value = create_mock_streaming_response("Response", done=True)
     mock_response.raise_for_status = MagicMock()
@@ -579,15 +592,21 @@ def test_remote_connection_error(mocker, capsys):
 
 def test_ollama_host_url_formatting():
     """Test URL formatting for OLLAMA_HOST."""
-    # Test with http://
+    # Test with host:port (scheme added)
     with patch.dict(os.environ, {'OLLAMA_HOST': 'test:11434'}):
         env = get_env()
         assert env['OLLAMA_HOST'] == 'http://test:11434'
     
-    # Test with existing http://
+    # Test with existing http:// and port
     with patch.dict(os.environ, {'OLLAMA_HOST': 'http://test:11434'}):
         env = get_env()
         assert env['OLLAMA_HOST'] == 'http://test:11434'
+
+    # Host without port must get default 11434 (ollama CLI behavior)
+    with patch.dict(os.environ, {'OLLAMA_HOST': 'http://192.168.22.53'}):
+        env = get_env()
+        assert env['OLLAMA_HOST'] == 'http://192.168.22.53:11434'
+        assert get_ollama_base_url(env) == 'http://192.168.22.53:11434'
 
 # Command Formatting Tests
 def test_shell_command_formatting():
@@ -1195,15 +1214,14 @@ def test_save_modelfile_uses_ollama_host_hostname(mocker, tmp_path, monkeypatch)
 
 def test_error_surfacing_config_load_failure(mocker, capsys, tmp_path, monkeypatch):
     """Test that config load errors are surfaced with warnings."""
-    import yaml
     from ol.config import Config
     
-    # Create a corrupted config file
-    config_file = tmp_path / 'config.yaml'
-    config_file.write_text('invalid: yaml: content: [')
-    
-    # Mock the config file path
+    # Config lives under ~/.config/ol/config.yaml relative to Path.home()
     monkeypatch.setattr('ol.config.Path.home', lambda: tmp_path)
+    config_dir = tmp_path / '.config' / 'ol'
+    config_dir.mkdir(parents=True)
+    config_file = config_dir / 'config.yaml'
+    config_file.write_text('invalid: yaml: content: [')
     
     # Test normal mode - should show concise warning
     config = Config(debug=False)
@@ -1243,15 +1261,16 @@ def test_error_surfacing_json_parse_failure(mocker, capsys):
 def test_error_surfacing_hostname_parse_failure(mocker, capsys, tmp_path, monkeypatch):
     """Test that hostname parsing errors are surfaced."""
     from ol.cli import get_hostname_for_filename
-    
-    # Test with invalid OLLAMA_HOST
-    with patch.dict(os.environ, {'OLLAMA_HOST': 'invalid://url:with:too:many:colons'}):
+
+    # Force urlparse to fail (urllib is lenient on many odd URLs in 3.12+)
+    mocker.patch('ol.cli.urlparse', side_effect=ValueError('bad host'))
+    with patch.dict(os.environ, {'OLLAMA_HOST': 'http://example:11434'}):
         # Normal mode - should show concise warning
         hostname = get_hostname_for_filename(debug=False)
         captured = capsys.readouterr()
         assert 'Warning' in captured.err
         assert 'OLLAMA_HOST' in captured.err or 'hostname' in captured.err.lower()
-        
+
         # Debug mode - should show full exception
         hostname = get_hostname_for_filename(debug=True)
         captured = capsys.readouterr()
@@ -1291,7 +1310,9 @@ def test_set_default_host_command(tmp_path, monkeypatch, capsys):
     from ol.config import Config
     
     # Test setting host for text model
-    main(['--set-default-host', 'text', 'http://text-server:11434'])
+    with pytest.raises(SystemExit) as exc:
+        main(['--set-default-host', 'text', 'http://text-server:11434'])
+    assert exc.value.code == 0
     captured = capsys.readouterr()
     assert 'Default text host set to: http://text-server:11434' in captured.out
     
@@ -1300,7 +1321,9 @@ def test_set_default_host_command(tmp_path, monkeypatch, capsys):
     assert config.get_host_for_type('text') == 'http://text-server:11434'
     
     # Test setting host for vision model
-    main(['--set-default-host', 'vision', 'http://vision-server:11434'])
+    with pytest.raises(SystemExit) as exc:
+        main(['--set-default-host', 'vision', 'http://vision-server:11434'])
+    assert exc.value.code == 0
     captured = capsys.readouterr()
     assert 'Default vision host set to: http://vision-server:11434' in captured.out
     
@@ -1326,7 +1349,9 @@ def test_set_default_host_normalization(tmp_path, monkeypatch, capsys):
     from ol.config import Config
     
     # Test without http:// prefix
-    main(['--set-default-host', 'text', 'server:11434'])
+    with pytest.raises(SystemExit) as exc:
+        main(['--set-default-host', 'text', 'server:11434'])
+    assert exc.value.code == 0
     captured = capsys.readouterr()
     assert 'http://server:11434' in captured.out
     
@@ -1432,6 +1457,73 @@ def test_estimate_prompt_tokens_conservative():
     text = "x" * 9000
     assert estimate_prompt_tokens(text) == 3000
     assert estimate_prompt_tokens("") == 0
+
+
+def test_get_effective_context_length_uses_default_port_on_ps(mocker):
+    """Context lookup must hit :11434 when the host omits a port."""
+    mock_ps = MagicMock()
+    mock_ps.raise_for_status = MagicMock()
+    mock_ps.json.return_value = {
+        'models': [{'name': 'qwen3.6:latest', 'context_length': 8192}]
+    }
+    mock_get = mocker.patch('requests.get', return_value=mock_ps)
+
+    ctx, source = get_effective_context_length(
+        'http://192.168.22.53',
+        'qwen3.6:latest',
+    )
+    assert ctx == 8192
+    assert source == 'currently loaded'
+    mock_get.assert_called_once()
+    assert mock_get.call_args[0][0] == 'http://192.168.22.53:11434/api/ps'
+
+
+def test_get_effective_context_length_from_show(mocker):
+    """Fall back to model_info *.context_length from /api/show."""
+    mock_ps = MagicMock()
+    mock_ps.raise_for_status = MagicMock()
+    mock_ps.json.return_value = {'models': []}
+    mocker.patch('requests.get', return_value=mock_ps)
+
+    mock_show = MagicMock()
+    mock_show.raise_for_status = MagicMock()
+    mock_show.json.return_value = {
+        'model_info': {'qwen35moe.context_length': 262144},
+    }
+    mock_post = mocker.patch('requests.post', return_value=mock_show)
+
+    ctx, source = get_effective_context_length(
+        'http://192.168.22.53:11434',
+        'qwen3.6:latest',
+    )
+    assert ctx == 262144
+    assert source == 'model maximum'
+    assert mock_post.call_args[0][0] == 'http://192.168.22.53:11434/api/show'
+
+
+def test_get_effective_context_length_surfaces_connection_errors(mocker):
+    """When both APIs fail, the error should include host and failure detail."""
+    mocker.patch(
+        'requests.get',
+        side_effect=Exception('connection refused'),  # not RequestException path only
+    )
+    # Use RequestException so it is caught
+    import requests as req
+    mocker.patch(
+        'requests.get',
+        side_effect=req.exceptions.ConnectionError('connection refused'),
+    )
+    mocker.patch(
+        'requests.post',
+        side_effect=req.exceptions.ConnectionError('connection refused'),
+    )
+
+    with pytest.raises(RuntimeError) as exc:
+        get_effective_context_length('http://192.168.22.53:11434', 'qwen3.6:latest')
+    msg = str(exc.value)
+    assert "Could not determine context window for model 'qwen3.6:latest'" in msg
+    assert 'http://192.168.22.53:11434' in msg
+    assert '/api/ps' in msg
 
 
 def test_ensure_prompt_fits_context_refuses_oversized(mocker, capsys):
