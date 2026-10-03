@@ -5,6 +5,15 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.1.35] - 2026-10-03
+
+### Changed
+- Send temperature via Ollama's supported `options.temperature` payload shape
+  instead of a top-level `temperature` field on `/api/generate` and `/api/chat`
+- Generalized `call_ollama_api()` to accept pre-encoded base64 `image_data`,
+  return the complete buffered response as a string, and optionally suppress
+  streaming output via `echo=False` (groundwork for clipboard OCR)
+
 ## [0.1.34] - 2026-08-02
 
 ### Fixed

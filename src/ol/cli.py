@@ -854,7 +854,9 @@ def format_performance_stats(metrics: Dict) -> str:
 def call_ollama_api(model: str, prompt: str, temperature: float, image_files: Optional[List[str]] = None, 
                     text_files: Optional[List[str]] = None, env: Optional[Dict[str, str]] = None, 
                     debug: bool = False, stats: bool = False,
-                    keep_alive: Optional[int] = None) -> None:
+                    keep_alive: Optional[int] = None,
+                    image_data: Optional[List[str]] = None,
+                    echo: bool = True) -> str:
     """
     Call Ollama API with the given parameters.
     
@@ -864,18 +866,31 @@ def call_ollama_api(model: str, prompt: str, temperature: float, image_files: Op
         model: The model to use
         prompt: The prompt to send
         temperature: Temperature parameter (0.0-2.0)
-        image_files: Optional list of image file paths
+        image_files: Optional list of image file paths (base64 encoded on read)
         text_files: Optional list of text file paths
         env: Environment variables dict
         debug: Whether to show debug information
         stats: Whether to print Ollama-style performance metrics to stderr
         keep_alive: Optional keep_alive value (-1 keeps the model loaded forever)
+        image_data: Optional list of already-base64-encoded image strings
+        echo: Whether to stream generated chunks to stdout (True by default)
+
+    Returns:
+        str: The complete generated response text.
     """
     base_url = get_ollama_base_url(env)
     
+    # Combine file-derived images (base64 encoded on read) with in-memory
+    # base64 image data. File-derived images come first, deterministically.
+    images = []
+    for img_file in image_files or []:
+        with open(img_file, 'rb') as f:
+            images.append(base64.b64encode(f.read()).decode('utf-8'))
+    images.extend(image_data or [])
+
     # Route to /api/chat if images are present, otherwise use /api/generate
-    has_images = image_files and len(image_files) > 0
-    image_count = len(image_files) if image_files else 0
+    has_images = len(images) > 0
+    image_count = len(images)
 
     # Always-on failsafe: refuse requests that cannot fit the effective context.
     ensure_prompt_fits_context(
@@ -890,13 +905,6 @@ def call_ollama_api(model: str, prompt: str, temperature: float, image_files: Op
         # Use /api/chat for image requests
         api_url = f"{base_url}/api/chat"
         
-        # Build images array
-        images = []
-        for img_file in image_files:
-            with open(img_file, 'rb') as f:
-                img_data = base64.b64encode(f.read()).decode('utf-8')
-                images.append(img_data)
-        
         # Chat API uses messages array format
         payload = {
             "model": model,
@@ -907,7 +915,9 @@ def call_ollama_api(model: str, prompt: str, temperature: float, image_files: Op
                     "images": images
                 }
             ],
-            "temperature": temperature,
+            "options": {
+                "temperature": temperature,
+            },
             "stream": True
         }
     else:
@@ -918,7 +928,9 @@ def call_ollama_api(model: str, prompt: str, temperature: float, image_files: Op
         payload = {
             "model": model,
             "prompt": prompt,
-            "temperature": temperature,
+            "options": {
+                "temperature": temperature,
+            },
             "stream": True
         }
         # Ensure images field is NOT included for text-only requests
@@ -951,8 +963,8 @@ def call_ollama_api(model: str, prompt: str, temperature: float, image_files: Op
         else:
             print(f"Endpoint: /api/generate (text-only)")
             print(f"Payload: {json.dumps(payload, indent=2)}")
-        if image_files:
-            print(f"Images: {len(image_files)} image(s) included")
+        if image_count:
+            print(f"Images: {image_count} image(s) included")
         print()
     
     try:
@@ -960,10 +972,11 @@ def call_ollama_api(model: str, prompt: str, temperature: float, image_files: Op
         response = requests.post(api_url, json=payload, stream=True, timeout=None)
         response.raise_for_status()
         
-        # Stream and print response
+        # Stream and buffer response
         emitted_any = False
         done_reason = None
         final_metrics = None
+        chunks = []
         for line in response.iter_lines():
             if line:
                 try:
@@ -972,9 +985,11 @@ def call_ollama_api(model: str, prompt: str, temperature: float, image_files: Op
                     if 'response' in data:
                         # /api/generate format
                         chunk = data['response']
+                        chunks.append(chunk)
                         if chunk:
                             emitted_any = True
-                        print(chunk, end='', flush=True)
+                        if echo:
+                            print(chunk, end='', flush=True)
                     elif (
                         'message' in data
                         and isinstance(data['message'], dict)
@@ -982,9 +997,11 @@ def call_ollama_api(model: str, prompt: str, temperature: float, image_files: Op
                     ):
                         # /api/chat format
                         chunk = data['message']['content']
+                        chunks.append(chunk)
                         if chunk:
                             emitted_any = True
-                        print(chunk, end='', flush=True)
+                        if echo:
+                            print(chunk, end='', flush=True)
                     if data.get('done', False):
                         done_reason = data.get('done_reason')
                         final_metrics = data
@@ -996,7 +1013,8 @@ def call_ollama_api(model: str, prompt: str, temperature: float, image_files: Op
                     # Continue processing other lines
                     continue
         
-        print()  # Newline after response
+        if echo:
+            print()  # Newline after response
 
         if stats and final_metrics:
             stats_text = format_performance_stats(final_metrics)
@@ -1025,6 +1043,8 @@ def call_ollama_api(model: str, prompt: str, temperature: float, image_files: Op
     except requests.exceptions.RequestException as e:
         print(f"Error calling Ollama API: {e}", file=sys.stderr)
         sys.exit(1)
+
+    return "".join(chunks)
 
 def run_ollama(prompt: str, model: str = None, files: Optional[List[str]] = None, 
                temperature: Optional[float] = None, debug: bool = False, 

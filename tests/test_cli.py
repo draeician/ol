@@ -93,7 +93,8 @@ def test_run_with_model(mocker, capsys):
     payload = call_args[1]['json']
     assert payload['model'] == 'codellama'
     assert payload['prompt'] == 'test prompt'
-    assert payload['temperature'] == 0.7  # default temperature
+    assert payload['options']['temperature'] == 0.7  # default temperature
+    assert 'temperature' not in payload
     assert payload['stream'] is True
     assert 'images' not in payload
     assert 'messages' not in payload  # Chat format should not be used
@@ -114,7 +115,8 @@ def test_run_with_temperature(mocker, capsys):
     
     call_args = mock_post.call_args
     payload = call_args[1]['json']
-    assert payload['temperature'] == 0.9
+    assert payload['options']['temperature'] == 0.9
+    assert 'temperature' not in payload
 
 
 def test_prompt_from_file_short_flag(mocker, tmp_path, capsys):
@@ -424,7 +426,8 @@ def test_image_processing_local(mocker, tmp_path, monkeypatch, capsys):
     assert payload['messages'][0]['content'] == 'describe'
     assert 'images' in payload['messages'][0]
     assert len(payload['messages'][0]['images']) == 1
-    assert payload['temperature'] == 0.7
+    assert payload['options']['temperature'] == 0.7
+    assert 'temperature' not in payload
     assert payload['stream'] is True
     
     # Verify image is base64 encoded
@@ -1790,3 +1793,155 @@ def test_unload_model_helper(mocker, capsys):
         "stream": False,
     }
     assert 'Unloaded model: codellama' in capsys.readouterr().out
+
+
+# Transport generalization tests (in-memory images, buffered output, echo).
+
+def test_call_ollama_api_in_memory_image_data(mocker):
+    """In-memory base64 image data routes to /api/chat without a file read."""
+    mocker.patch('ol.cli.ensure_prompt_fits_context')
+    mock_open = mocker.patch('builtins.open')
+    mock_response = MagicMock()
+    mock_response.iter_lines.return_value = iter([
+        json.dumps({
+            "message": {"role": "assistant", "content": ""},
+            "done": True,
+            "done_reason": "stop",
+        }).encode('utf-8'),
+    ])
+    mock_response.raise_for_status = MagicMock()
+    mock_post = mocker.patch('requests.post', return_value=mock_response)
+
+    call_ollama_api(
+        'llava', 'describe', 0.7, env={}, image_data=['ZmFrZV9pbWFnZQ==']
+    )
+
+    assert mock_post.call_args[0][0] == 'http://localhost:11434/api/chat'
+    payload = mock_post.call_args[1]['json']
+    assert payload['messages'][0]['images'] == ['ZmFrZV9pbWFnZQ==']
+    mock_open.assert_not_called()
+
+
+def test_call_ollama_api_combined_file_and_memory_images(mocker, tmp_path):
+    """File images come first, then in-memory data; total count drives context."""
+    ensure_mock = mocker.patch('ol.cli.ensure_prompt_fits_context')
+    img_file = tmp_path / 'test.jpg'
+    img_file.write_bytes(b'fake_image_data')
+
+    mock_response = MagicMock()
+    mock_response.iter_lines.return_value = iter([
+        json.dumps({
+            "message": {"role": "assistant", "content": ""},
+            "done": True,
+            "done_reason": "stop",
+        }).encode('utf-8'),
+    ])
+    mock_response.raise_for_status = MagicMock()
+    mock_post = mocker.patch('requests.post', return_value=mock_response)
+
+    call_ollama_api(
+        'llava',
+        'describe',
+        0.7,
+        image_files=[str(img_file)],
+        image_data=['ZmFrZV9pbWFnZQ=='],
+        env={},
+    )
+
+    payload = mock_post.call_args[1]['json']
+    images = payload['messages'][0]['images']
+    assert len(images) == 2
+    assert images[0] == base64.b64encode(b'fake_image_data').decode('utf-8')
+    assert images[1] == 'ZmFrZV9pbWFnZQ=='
+    ensure_mock.assert_called_once()
+    assert ensure_mock.call_args.kwargs['image_count'] == 2
+
+
+def test_call_ollama_api_returns_generate_text(mocker):
+    """Accumulated /api/generate chunks are returned as one string."""
+    mocker.patch('ol.cli.ensure_prompt_fits_context')
+    mock_response = MagicMock()
+    mock_response.iter_lines.return_value = iter([
+        json.dumps({"response": "Hello", "done": False}).encode('utf-8'),
+        json.dumps({"response": " world", "done": False}).encode('utf-8'),
+        json.dumps({
+            "response": "", "done": True, "done_reason": "stop",
+        }).encode('utf-8'),
+    ])
+    mock_response.raise_for_status = MagicMock()
+    mocker.patch('requests.post', return_value=mock_response)
+
+    result = call_ollama_api('gemma4:latest', 'prompt', 0.7, env={}, echo=False)
+
+    assert result == 'Hello world'
+
+
+def test_call_ollama_api_returns_chat_text(mocker):
+    """Accumulated /api/chat chunks are returned as one string."""
+    mocker.patch('ol.cli.ensure_prompt_fits_context')
+    mock_response = MagicMock()
+    mock_response.iter_lines.return_value = iter([
+        json.dumps({
+            "message": {"role": "assistant", "content": "Hello"},
+            "done": False,
+        }).encode('utf-8'),
+        json.dumps({
+            "message": {"role": "assistant", "content": " world"},
+            "done": False,
+        }).encode('utf-8'),
+        json.dumps({
+            "message": {"role": "assistant", "content": ""},
+            "done": True,
+            "done_reason": "stop",
+        }).encode('utf-8'),
+    ])
+    mock_response.raise_for_status = MagicMock()
+    mocker.patch('requests.post', return_value=mock_response)
+
+    result = call_ollama_api(
+        'llava', 'prompt', 0.7, env={}, image_data=['ZmFrZV9pbWFnZQ=='], echo=False
+    )
+
+    assert result == 'Hello world'
+
+
+def test_call_ollama_api_echo_true_streams_stdout(mocker, capsys):
+    """echo=True preserves chunk streaming and the trailing newline."""
+    mocker.patch('ol.cli.ensure_prompt_fits_context')
+    mock_response = MagicMock()
+    mock_response.iter_lines.return_value = iter([
+        json.dumps({"response": "Hello", "done": False}).encode('utf-8'),
+        json.dumps({"response": " world", "done": False}).encode('utf-8'),
+        json.dumps({
+            "response": "", "done": True, "done_reason": "stop",
+        }).encode('utf-8'),
+    ])
+    mock_response.raise_for_status = MagicMock()
+    mocker.patch('requests.post', return_value=mock_response)
+
+    result = call_ollama_api('gemma4:latest', 'prompt', 0.7, env={})
+
+    captured = capsys.readouterr()
+    assert result == 'Hello world'
+    assert captured.out == 'Hello world\n'
+
+
+def test_call_ollama_api_echo_false_suppresses_stdout(mocker, capsys):
+    """echo=False buffers the response without writing to stdout."""
+    mocker.patch('ol.cli.ensure_prompt_fits_context')
+    mock_response = MagicMock()
+    mock_response.iter_lines.return_value = iter([
+        json.dumps({"response": "Hello", "done": False}).encode('utf-8'),
+        json.dumps({"response": " world", "done": False}).encode('utf-8'),
+        json.dumps({
+            "response": "", "done": True, "done_reason": "stop",
+        }).encode('utf-8'),
+    ])
+    mock_response.raise_for_status = MagicMock()
+    mocker.patch('requests.post', return_value=mock_response)
+
+    result = call_ollama_api('gemma4:latest', 'prompt', 0.7, env={}, echo=False)
+
+    captured = capsys.readouterr()
+    assert result == 'Hello world'
+    assert captured.out == ''
