@@ -155,6 +155,7 @@ ol -m llama3.2:latest --save-modelfile --output-dir ~/.config/ol/templates
 - `-s, --stats`: Show performance metrics after the response (Ollama `--verbose` style)
 - `-k, --keep`: Keep the model loaded in memory forever after this request
 - `-u, --unload`: Unload a model from memory (uses `-m` or the default text model)
+- `--ocr`: OCR an image from the clipboard and replace the clipboard with the extracted text
 - `-f PROMPTFILE, --file PROMPTFILE`: Read prompt text from a file (mutually exclusive with a positional prompt argument)
 - `-h HOST, --host HOST`: Ollama host (default: localhost). Overrides OLLAMA_HOST for this command.
 - `-p PORT, --port PORT`: Ollama port (default: 11434). Overrides OLLAMA_HOST for this command.
@@ -334,6 +335,52 @@ ol "What's in this image?" image.jpg
 # Remote instance (requires absolute path)
 OLLAMA_HOST=http://server:11434 ol "What's in this image?" /home/user/images/photo.jpg
 ```
+
+### Clipboard OCR
+
+`ol --ocr` reads an image from your system clipboard, sends it to a vision
+model, and replaces the clipboard with the extracted text.
+
+```bash
+# OCR the current clipboard image (uses the configured vision model)
+ol --ocr
+
+# Override the model
+ol --ocr -m llama3.2-vision
+
+# Use a remote Ollama instance
+ol --ocr -h server -p 11434
+```
+
+Workflow:
+
+```text
+copy/screenshot image
+→ ol --ocr
+→ extracted text printed
+→ clipboard now contains extracted text
+```
+
+Notes:
+
+- The clipboard image is encoded to PNG/base64 entirely in memory and sent to
+  the configured local or remote Ollama vision endpoint; it is not written to
+  a temporary file.
+- OCR defaults to the configured vision model and a temperature of `0.0`;
+  `-m`, `--temperature`, `-h`, `-p`, `-d`, `-s`, and `-k` may be used to
+  override those defaults.
+
+Linux prerequisites for clipboard image access:
+
+```bash
+# X11
+sudo apt install xclip
+
+# Wayland
+sudo apt install wl-clipboard
+```
+
+`wl-clipboard` provides both `wl-paste` and `wl-copy`.
 
 ### Debug Mode
 

@@ -5,14 +5,20 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [0.1.35] - 2026-10-03
+## [0.2.0] - 2026-10-03
+
+### Added
+- `ol --ocr` to OCR an image from the system clipboard and replace the
+  clipboard with the extracted text
+- Clipboard image/text integration (`src/ol/clipboard.py`) using Pillow and
+  Pyperclip; images are encoded to PNG/base64 in memory with no temp files
 
 ### Changed
 - Send temperature via Ollama's supported `options.temperature` payload shape
   instead of a top-level `temperature` field on `/api/generate` and `/api/chat`
 - Generalized `call_ollama_api()` to accept pre-encoded base64 `image_data`,
   return the complete buffered response as a string, and optionally suppress
-  streaming output via `echo=False` (groundwork for clipboard OCR)
+  streaming output via `echo=False`
 
 ## [0.1.34] - 2026-08-02
 

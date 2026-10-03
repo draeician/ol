@@ -27,6 +27,15 @@ DEFAULT_REPLY_TOKEN_RESERVE = 512
 # Conservative pad per image when vision tokens cannot be counted exactly.
 DEFAULT_IMAGE_TOKEN_PAD = 768
 
+# Built-in OCR instruction. Requests raw, faithful transcription only.
+OCR_PROMPT = (
+    "Transcribe every visible text character in this image as faithfully as possible.\n"
+    "Preserve reading order, line breaks, capitalization, punctuation, and spacing where reasonably inferable.\n"
+    "Do not summarize, explain, correct, normalize, translate, or add Markdown, code fences, labels, prefixes, or commentary.\n"
+    "Output only the transcription.\n"
+    "If no text is visible, return an empty response."
+)
+
 
 def get_env() -> Dict[str, str]:
     """Get environment variables for Ollama."""
@@ -1046,6 +1055,108 @@ def call_ollama_api(model: str, prompt: str, temperature: float, image_files: Op
 
     return "".join(chunks)
 
+def run_ocr(
+    model: Optional[str] = None,
+    temperature: Optional[float] = None,
+    debug: bool = False,
+    stats: bool = False,
+    keep: bool = False,
+    cli_host_provided: bool = False,
+) -> None:
+    """
+    OCR an image from the clipboard and replace the clipboard with the text.
+
+    Reads an image from the system clipboard, encodes it in memory, and sends
+    it through the vision transport with an OCR-focused prompt. On success the
+    returned transcription is written to both the clipboard and stdout.
+
+    Args:
+        model: Model to use (if None, the configured vision model is used)
+        temperature: Temperature to use (defaults to 0.0 for OCR)
+        debug: Whether to show debug information
+        stats: Whether to print performance metrics after the response
+        keep: If True, keep the model loaded forever (keep_alive=-1)
+        cli_host_provided: Whether CLI host/port flags were provided
+    """
+    from .clipboard import (
+        ClipboardError,
+        get_clipboard_image_base64,
+        set_clipboard_text,
+    )
+
+    config = Config()
+
+    # Model: explicit -m, otherwise the configured vision model.
+    if model is None:
+        model = config.get_model_for_type('vision')
+        if debug:
+            print(f"Selected vision model for OCR: {model}")
+
+    # Temperature: OCR default 0.0, explicit --temperature overrides it.
+    if temperature is None:
+        temperature = 0.0
+    elif not (0.0 <= temperature <= 2.0):
+        print(
+            f"Error: Temperature must be between 0.0 and 2.0, got {temperature}",
+            file=sys.stderr,
+        )
+        sys.exit(1)
+
+    # Host precedence: CLI -h/-p (already in env) > OLLAMA_HOST > configured
+    # vision host > localhost. Use a local env dict to avoid mutating globals.
+    env = get_env()
+    if not cli_host_provided and 'OLLAMA_HOST' not in env:
+        vision_host = config.get_host_for_type('vision')
+        if vision_host:
+            env['OLLAMA_HOST'] = vision_host
+            if debug:
+                print(f"Using configured vision host: {vision_host}")
+
+    if debug:
+        print("\n=== OCR Debug Information ===")
+        print(f"Model: {model}")
+        print(f"Temperature: {temperature}")
+
+    try:
+        clipboard_image = get_clipboard_image_base64()
+    except ClipboardError as e:
+        print(f"Error: {e}", file=sys.stderr)
+        sys.exit(1)
+
+    result = call_ollama_api(
+        model,
+        OCR_PROMPT,
+        temperature,
+        image_data=[clipboard_image],
+        env=env,
+        debug=debug,
+        stats=stats,
+        keep_alive=-1 if keep else None,
+        echo=False,
+    )
+
+    # Treat whitespace-only output as an unsuccessful OCR pass.
+    if not result.strip():
+        print(
+            "Error: OCR returned no text; clipboard left unchanged.",
+            file=sys.stderr,
+        )
+        sys.exit(1)
+
+    # Emit the exact result to stdout so the user can recover it even if the
+    # clipboard write subsequently fails.
+    sys.stdout.write(result)
+    sys.stdout.flush()
+
+    try:
+        set_clipboard_text(result)
+    except ClipboardError as e:
+        print(f"Error: {e}", file=sys.stderr)
+        sys.exit(1)
+
+    # Only record success once the full OCR + clipboard pipeline completed.
+    config.set_last_used_model(model)
+
 def run_ollama(prompt: str, model: str = None, files: Optional[List[str]] = None, 
                temperature: Optional[float] = None, debug: bool = False, 
                cli_host_provided: bool = False, stats: bool = False,
@@ -1401,6 +1512,11 @@ def main(argv: Optional[Sequence[str]] = None) -> None:
               
               # Set default host for model type:
               ol --set-default-host vision http://server:11434
+
+              # OCR an image from the clipboard:
+              ol --ocr
+              ol --ocr -m llama3.2-vision
+              ol --ocr -h server -p 11434
         ''')
     )
     
@@ -1434,6 +1550,8 @@ def main(argv: Optional[Sequence[str]] = None) -> None:
                        help='Keep the model loaded in memory forever after this request (keep_alive=-1)')
     parser.add_argument('-u', '--unload', action='store_true',
                        help='Unload a model from memory (uses -m or the default text model)')
+    parser.add_argument('--ocr', action='store_true',
+                       help='OCR an image from the clipboard and replace the clipboard with the extracted text')
     file_arg = parser.add_argument(
         '-f', '--file', metavar='PROMPTFILE',
         help='Read prompt text from a file',
@@ -1585,6 +1703,26 @@ def main(argv: Optional[Sequence[str]] = None) -> None:
                 print("Error: --model is required when using --save-modelfile (or use --all to save all models)", file=sys.stderr)
                 sys.exit(1)
             save_modelfile(args.model, args.output_dir, args.debug)
+        return
+
+    # OCR must run before any STDIN reading so `ol --ocr` never consumes
+    # piped/redirected input, and cannot be combined with content inputs.
+    if args.ocr:
+        if args.prompt or args.files or args.file:
+            print(
+                "Error: --ocr cannot be combined with a prompt, files, or --file.",
+                file=sys.stderr,
+            )
+            sys.exit(1)
+        cli_host_provided = args.host is not None or args.port is not None
+        run_ocr(
+            model=args.model,
+            temperature=args.temperature,
+            debug=args.debug,
+            stats=args.stats,
+            keep=args.keep,
+            cli_host_provided=cli_host_provided,
+        )
         return
 
     # Check for STDIN input (piping/redirection)

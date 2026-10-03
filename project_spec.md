@@ -20,6 +20,7 @@ OLLAMA_HOST=http://server:11434 ol [options] "PROMPT" [FILES...]
 - `-s, --stats`                   : Show performance metrics after the response (Ollama --verbose style)
 - `-k, --keep`                    : Keep the model loaded forever after this request (keep_alive=-1)
 - `-u, --unload`                  : Unload a model from memory (uses -m or default text model)
+- `--ocr`                         : OCR an image from the clipboard and replace the clipboard with the extracted text
 - `-f PROMPTFILE, --file PROMPTFILE`: Read prompt text from a file (mutually exclusive with a positional prompt)
 - `-h HOST, --host HOST`          : Ollama host (default: localhost). Overrides OLLAMA_HOST for this command.
 - `-p PORT, --port PORT`          : Ollama port (default: 11434). Overrides OLLAMA_HOST for this command.
@@ -71,6 +72,10 @@ Completion covers filesystem paths for `-f`/`--file`, `--output-dir`, and positi
 - `-k`/`--keep` to keep a model loaded forever after a request (`keep_alive=-1`)
 - `-u`/`--unload` to unload a model from memory (`keep_alive=0`)
 - `--ps`/`--loaded` to list models currently loaded via `/api/ps`
+- `--ocr` to OCR an image from the system clipboard (input: clipboard image;
+  output: stdout + clipboard text) using the configured vision model by default
+  and an OCR default temperature of `0.0`; `-m`/`-h`/`-p`/`--temperature`
+  override normal defaults
 - Always-on context-window failsafe: refuses requests that cannot fit the
   effective model context (loaded `/api/ps` context when available, else
   `/api/show` maximum), and exits non-zero if the stream ends with
@@ -217,6 +222,11 @@ ol "Compare these" file1.py file2.py
 # Image analysis
 ol image.jpg  # Uses vision model automatically
 
+# Clipboard OCR
+ol --ocr          # OCR the clipboard image with the configured vision model
+ol --ocr -m llama3.2-vision
+ol --ocr -h server -p 11434
+
 # View current configuration defaults
 ol
 
@@ -253,6 +263,7 @@ Options:
   -d, --debug                     Show debug information including API request details
   -k, --keep                      Keep model loaded forever after this request
   -u, --unload                    Unload a model from memory
+  --ocr                           OCR an image from the clipboard and replace the clipboard with the extracted text
   -h, --host HOST                 Ollama host (default: localhost). Overrides OLLAMA_HOST and configured hosts for this command.
   -p, --port PORT                 Ollama port (default: 11434). Overrides OLLAMA_HOST and configured hosts for this command.
   --set-default-model TYPE MODEL  Set default model for type (text or vision)

@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "ol"
-version = "0.1.35"
+version = "0.2.0"
 description = "A Python wrapper for the Ollama REPL command"
 readme = "README.md"
 requires-python = ">=3.7"
@@ -18,7 +18,9 @@ dependencies = [
     "gitpython>=3.1.0",
     "requests>=2.31.0",
     "pypdf>=4.0.0",
-    "argcomplete>=2.0.0"
+    "argcomplete>=2.0.0",
+    "Pillow>=9.4.0",
+    "pyperclip>=1.11.0"
 ]
 classifiers = [
     "Development Status :: 3 - Alpha",
