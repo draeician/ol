@@ -536,12 +536,14 @@ def format_decision_output(
                     result['probability'] = prob
             
             elif q_type == 'choice':
-                value = answer.get('value')
+                value = answer.get('choice') or answer.get('value')
                 value_labels = result_cfg.get('value_labels', {})
                 label = value_labels.get(value, value)
                 result['value'] = value
                 result['label'] = label
                 result['probabilities'] = answer.get('probabilities', {})
+                if 'confidence' in answer:
+                    result['confidence'] = answer['confidence']
             
             elif q_type == 'score':
                 result['value'] = answer.get('value')
@@ -575,18 +577,33 @@ def format_decision_output(
                     lines.append(output_line)
             
             elif q_type == 'choice':
-                value = answer.get('value', '')
+                value = answer.get('choice') or answer.get('value') or ''
                 value_labels = result_cfg.get('value_labels', {})
                 label = value_labels.get(value, value)
                 
                 if len(questions) > 1:
                     output_line = f"{q_name}: {label}"
                 else:
-                    output_line = label
+                    output_line = str(label) if label is not None else ''
                 
                 if source:
                     output_line += f"  {source}"
+                if 'confidence' in answer and answer['confidence'] is not None:
+                    output_line += f"  conf={answer['confidence']:.2f}"
                 lines.append(output_line)
+                
+                probabilities = answer.get('probabilities') or {}
+                if probabilities:
+                    sorted_probs = sorted(
+                        probabilities.items(),
+                        key=lambda item: item[1],
+                        reverse=True,
+                    )
+                    prob_parts = [
+                        f"{opt} {int(round(prob * 100))}%"
+                        for opt, prob in sorted_probs
+                    ]
+                    lines.append(f"  {'  '.join(prob_parts)}")
             
             elif q_type == 'score':
                 value = answer.get('value', 0)

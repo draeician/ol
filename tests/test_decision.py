@@ -480,6 +480,103 @@ def test_format_decision_output_choice():
     output = format_decision_output(response, profile, source='eggs.jpg')
     assert '6' in output
     assert 'eggs.jpg' in output
+    assert '6 95%' in output
+    assert '7 3%' in output
+
+
+def test_format_decision_output_choice_api_key():
+    """Regression: Ollama returns winning choice under 'choice', not 'value'."""
+    response = {
+        'model': 'clef-flash',
+        'answers': {
+            'presence': {
+                'type': 'choice',
+                'choice': 'humanoid',
+                'probabilities': {
+                    'humanoid': 0.91,
+                    'none': 0.05,
+                    'unclear': 0.04,
+                },
+                'confidence': 0.67,
+            },
+            'sex': {
+                'type': 'choice',
+                'choice': 'female',
+                'probabilities': {
+                    'female': 0.92,
+                    'ambiguous': 0.04,
+                    'male': 0.02,
+                    'none': 0.01,
+                },
+                'confidence': 0.74,
+            },
+        },
+    }
+
+    profile = {
+        'questions': {
+            'presence': {
+                'type': 'choice',
+                'criteria': {
+                    'humanoid': 'A humanoid is present',
+                    'none': 'No humanoid',
+                    'unclear': 'Unclear',
+                },
+            },
+            'sex': {
+                'type': 'choice',
+                'criteria': {
+                    'female': 'Female',
+                    'male': 'Male',
+                    'ambiguous': 'Ambiguous',
+                    'none': 'None',
+                },
+            },
+        },
+        'results': {
+            'presence': {
+                'value_labels': {
+                    'humanoid': 'humanoid',
+                    'none': 'none',
+                    'unclear': 'unclear',
+                },
+            },
+            'sex': {
+                'value_labels': {
+                    'female': 'female',
+                    'male': 'male',
+                    'ambiguous': 'ambiguous',
+                    'none': 'none',
+                },
+            },
+        },
+    }
+
+    human = format_decision_output(response, profile, source='photo.jpg')
+    assert (
+        'presence: humanoid  photo.jpg  conf=0.67\n'
+        '  humanoid 91%  none 5%  unclear 4%'
+    ) in human
+    assert (
+        'sex: female  photo.jpg  conf=0.74\n'
+        '  female 92%  ambiguous 4%  male 2%  none 1%'
+    ) in human
+
+    parsed = json.loads(
+        format_decision_output(response, profile, source='photo.jpg', json_output=True)
+    )
+    presence = parsed['results']['presence']
+    assert presence['value'] == 'humanoid'
+    assert presence['label'] == 'humanoid'
+    assert presence['confidence'] == 0.67
+    assert presence['probabilities']['humanoid'] == 0.91
+    assert presence['raw']['choice'] == 'humanoid'
+    assert 'value' not in presence['raw']
+
+    sex = parsed['results']['sex']
+    assert sex['value'] == 'female'
+    assert sex['label'] == 'female'
+    assert sex['confidence'] == 0.74
 
 
 def test_bundled_profiles_exist():

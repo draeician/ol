@@ -21,7 +21,13 @@ ol is a Python CLI wrapper for Ollama, supporting both local and remote instance
 - Tab completion (argcomplete)
 - Version management
 
-**Version:** 0.3.0 (2026-10-06)
+**Version:** 0.3.3 (2026-10-06)
+
+**Recent Changes (0.3.3):**
+- Fixed System One choice formatting: read API `choice` (fallback `value`)
+- Human choice output shows winner, confidence, and descending option percentages
+- JSON choice results set value/label/confidence correctly for `choice`-keyed answers
+
 
 **Recent Changes (0.3.0):**
 - Implemented System One decision mode per PLAN-systemone.md
