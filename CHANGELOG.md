@@ -5,6 +5,32 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.3.0] - 2026-10-06
+
+### Added
+- System One decision mode via `-dc`/`--dc`/`--decision` flags for typed decision inference
+- Decision model categories: `decision` (default: tev1) and `decision_vision` (default: clef-flash)
+- Versioned user-overridable decision profiles with input requirements, questions, and result interpretation
+- Bundled starter profiles: `nsfw` (image content policy) and `eggs` (counting example)
+- Profile management: `--dc-list` to list profiles, `--dc-edit <name>` to edit/create profiles
+- Default decision profiles per category (text/vision) configurable via `--set-default-decision-profile`
+- Inline boolean question support: `ol -dc "Is this image blurry?" image.jpg`
+- Clipboard image input: `-c`/`--clipboard` (decision mode only, leaves clipboard unchanged)
+- Sequential batch processing: `--each` processes each image independently
+- Machine-readable output: `--json` for single requests, JSON Lines for `--each`
+- Capability validation: verifies models support decision and vision capabilities via `/api/show`
+- Decision inference via non-streaming `POST /v1/systemone` with base64 images
+- Host resolution per model category with CLI/env/config precedence
+- Separate temperature validation (text/vision only; decision mode rejects `--temperature`)
+- Profile validation with type-specific question limits and threshold checking
+- Comprehensive test coverage: 25 decision-specific tests, 193 total tests passing
+
+### Changed
+- Display defaults now shows decision models and default profiles
+- Model type completion extended to include decision categories
+- Configuration deep-merges defaults with user overrides for new decision fields
+- Version bumped to 0.3.0 (minor: new feature)
+
 ## [0.2.0] - 2026-10-03
 
 ### Added

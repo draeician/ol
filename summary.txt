@@ -1,159 +1,94 @@
-Project Status Summary:
+# Summary
 
-Current Version: 0.1.34 (host port normalization)
+ol is a Python CLI wrapper for Ollama, supporting both local and remote instances. It provides enhanced configuration, file injection, vision models, clipboard OCR, and System One decision inference.
 
-Key Milestones:
-- Initial project setup and structure completed
-- Basic functionality implemented and tested
-- All tests passing successfully
-- Version flag functionality fixed and working
-- Package properly installable via pip
-- Debug output now properly controlled by -d flag
-- Fixed missing imports
-- Confirmed stable with comprehensive testing
-- Version update detection working correctly with pipx
-- TODO item completed: models listing functionality fully integrated into ol command
-- Added Modelfile download and save functionality
+**Key Features:**
+- System One decision mode (-dc/--dc/--decision) for typed decision inference
+  - Decision and decision_vision model categories (tev1, clef-flash defaults)
+  - Versioned user-overridable profiles with bundled nsfw and eggs starters
+  - Inline boolean questions, clipboard input, batch --each processing
+  - JSON/JSON Lines output with interpreted results
+  - Capability validation and /v1/systemone transport
+- File injection (text/PDF/images)
+- Separate text/vision/decision/decision_vision model defaults with temperature control
+- Per-type host configuration (text/vision/decision/decision_vision)
+- Clipboard OCR (--ocr)
+- Model management (list, load forever, unload, loaded models)
+- STDIN input support for piping/redirection
+- Automatic context-window validation
+- Performance metrics (--stats)
+- Modelfile saving
+- Tab completion (argcomplete)
+- Version management
 
-Decision-model plan (not implemented; review PLAN-systemone.md):
-- Ollama 0.35+ exposes Jev-style decisions at POST /v1/systemone
-- --dc/--decision, models.decision default nimble, models.decision_vision default clef-flash
-- Prompt, stdin, and text/PDF files become state; PNG/JPEG/WebP go in the images array on the same endpoint
-- Questions come from a named profile or --questions file
-- Transcript "null"/"place" map to API types noul and choice; score is unchanged
+**Version:** 0.3.0 (2026-10-06)
 
-Recent Changes:
-- Version 0.1.33: Added -k/--keep (keep_alive=-1), -u/--unload (keep_alive=0), and --ps/--loaded (GET /api/ps) for endpoint memory management
-- Initialized Grok starter files from existing crules swarm modes and project_spec:
-  - AGENTS.md (canonical, status [CUSTOMIZED])
-  - GROK.md (thin Grok entrypoint)
-  - .grok/rules/{00-swarm-sop,10-python-style,20-git-and-version}.md
-  - .grok/agents/{swarm,coder,manager}.md
-  - .crules/tasks/{wip,review,done}/ pipeline dirs (local; .crules/ is gitignored)
-- Confirmed via `grok inspect`: project rules + swarm/coder/manager agents load
-- Autocomplete feature verified by user; changes committed and pushed to remote
-- Version 0.1.29: Shell tab completion via argcomplete for bash/zsh; filesystem completion for -f/--file, --output-dir, and positional content files; model name completion for -m; type completion for --set-default-* commands; enable with eval "$(register-python-argcomplete ol)"
-- Version 0.1.28: Added -f/--file PROMPTFILE to read prompt text from a file (additive; positional prompt, STDIN, and content-file injection unchanged)
-- --file is mutually exclusive with a positional prompt argument; can be combined with content files and STDIN
-- Native PDF text extraction support (pypdf>=4.0.0); .pdf files are routed before binary check, text extracted and appended to prompt; encrypted or empty PDFs emit a warning and are skipped
-- Version 0.1.27
-- Added --save-modelfile flag to download and save model Modelfiles
-- Added -a/--all flag to save Modelfiles for all models
-- Added --output-dir option for custom output directory
-- Implemented save_modelfile() and save_all_modelfiles() functions with proper error handling
-- Implemented list_installed_models() helper with JSON and text parsing fallback
-- Implemented sanitize_model_name() to handle path-hostile characters in model names
-- Filename pattern: <modelname>-<hostname>-<YYYYMMDD-HHMMSS>.modelfile
-- Path-hostile characters (/, \, :, spaces, etc.) replaced with underscores in filenames
-- Support for remote Modelfile downloads via OLLAMA_HOST
-- Improved error handling: continues processing remaining models when one fails
-- Fixed FileNotFoundError for models with slashes in names
-- Added comprehensive test suite for save_modelfile and --all functionality
-- Updated version to 0.1.13
-- Updated documentation with usage examples
-- Added -H/--host and -p/--port CLI flags to override OLLAMA_HOST for the current command
-- Implemented host/port normalization and environment variable setting
-- Added comprehensive tests for host/port override functionality
-- Updated version to 0.1.15
-- Updated documentation with host/port usage examples
-- Added display_defaults() function to show current configuration when no arguments provided
-- Updated version to 0.1.16
-- Added --set-default-model CLI command to change default text or vision models
-- Implemented set_default_model() function with validation
-- Updated version to 0.1.17
-- Added temperature control support with --set-default-temperature and --temperature flags
-- Switched to Ollama HTTP API for temperature parameter support
-- Implemented call_ollama_api() function for API-based requests
-- Added temperature defaults to configuration (0.7 for text and vision)
-- Updated version to 0.1.18
-- Branch 1 (chore/packaging-docs-metadata): Corrected Python version requirement from 3.6+ to 3.7+ to match actual dependency requirements (packaging>=23.0, gitpython>=3.1.0 require Python 3.7+)
-- Updated pyproject.toml: removed Python 3.6 classifier, updated requires-python to >=3.7
-- Fixed README.md: corrected prerequisites Python version and remote vision description (images are base64-encoded in API payload, not paths in prompt)
-- Created ainotes.md for tracking changes for future CHANGELOG entries
-- Branch 2 (chore/repo-hygiene): Removed generated artifacts from repository tracking
-- Updated .gitignore: added .pytest_cache/ to ensure all test artifacts are ignored
-- Verified that build artifacts (src/ol.egg-info/, build/, __pycache__/, .pytest_cache/) are properly ignored and not tracked in git
-- Confirmed packaging and imports still work correctly after hygiene cleanup
-- Branch 3 (test/http-api-suite): Refactored tests to validate HTTP API streaming execution
-- Updated tests to mock `requests.post` instead of `subprocess.run` for API calls
-- Added assertions for endpoint URL (OLLAMA_HOST usage), temperature parameter, images field behavior, and streaming output
-- Kept subprocess tests for `ollama list` and `ollama show --modelfile` operations
-- Tests now provide authentic validation of the HTTP API execution path
-- Updated version to 0.1.19: packaging metadata corrections, repository hygiene improvements, and HTTP API test suite refactoring
-- Branch 4 (fix/error-surfacing): Improved error handling to surface runtime errors consistently
-- Replaced silent exception swallowing with explicit error handling (debug mode shows full details, normal mode shows concise warnings)
-- Updated error handling in: config loading/saving, version management, hostname parsing, JSON parsing, and API streaming
-- Added tests to verify errors are properly surfaced and not hidden
-- Updated version to 0.1.20: error handling improvements
-- Branch 5 (fix/vision-mixed-contract): Route vision and mixed-content requests through /api/chat endpoint
-- Modified call_ollama_api() to route image requests to /api/chat with messages array payload format
-- Text-only requests continue using /api/generate endpoint with prompt field
-- Enforced strict payload contract: text-only has no images field, image requests always use /api/chat
-- Updated tests to verify endpoint routing and payload structure for both endpoints
-- No silent fallbacks: explicit errors if /api/chat fails (revert strategy if issues arise)
-- Isolated change for easy rollback if needed
-- Fixed chat API response format parsing (message.content vs response field)
-- Updated version to 0.1.21: vision/mixed-content routing through /api/chat
-- Branch 6 (fix/config-deep-merge): Implement deep merge for configuration defaults
-- Added deep_merge() function to recursively merge nested dictionaries
-- Updated _load_config() to use deep merge instead of shallow merge
-- Ensures missing nested keys remain populated from defaults
-- Explicit user overrides win deterministically
-- Added comprehensive tests for deep merge functionality
-- Updated version to 0.1.22: deep merge configuration fix
-- Branch 7 (refactor/init-from-cli): Remove side effects on import
-- Removed initialize_ol() call from __init__.py (no longer runs on import)
-- Moved initialization to CLI execution path (main() function)
-- Importing the package no longer writes to ~/.config/ol
-- CLI invocation still initializes configuration as expected
-- Added comprehensive tests proving import is clean and CLI still initializes
-- Updated version to 0.1.23: removed import side effects
-- Branch 8 (fix/update-no-shell): Remove shell execution in update path (security)
-- Replaced shell=True subprocess call with argument-list subprocess call
-- Uses shlex.split() to safely parse command string into arguments
-- Prevents shell injection vulnerabilities
-- Added comprehensive tests for update command execution
-- Tests verify argument list usage and error handling
-- Updated version to 0.1.24: security fix for update command
-- Branch 9 (feat/stdin-input-support): Add STDIN input support for piping and redirection
-- Added STDIN detection using sys.stdin.isatty() to check if input is available
-- Reads from STDIN when not a TTY (piping/redirection scenarios)
-- STDIN input used as prompt when no prompt argument provided
-- STDIN input combined with prompt argument when both provided
-- Handles multiline input and removes trailing newlines
-- Added comprehensive tests for STDIN input support
-- Updated version to 0.1.25: STDIN input support
-- Release 0.1.25: Final release branch with version verification, tagging, and documentation updates
-- Per-model-type host configuration (0.1.26): Added ability to set default hosts per model type (text/vision)
-- Added --set-default-host CLI argument to configure hosts for text or vision models
-- Config structure extended with hosts section (backward compatible)
-- CLI flags (-h/-p) always override config hosts for individual commands
-- Updated version to 0.1.26: Per-model-type host configuration
-- All feature branches (1-9) completed and merged to main
-- Version 0.1.25 includes:
-  - STDIN input support (Branch 9)
-  - Security fix for update command (Branch 8)
-  - Initialization refactor (Branch 7)
-  - Deep merge configuration fix (Branch 6)
-  - Vision/mixed content API routing (Branch 5)
-  - Host/port CLI flags (Branch 4)
-  - Modelfile save feature (Branches 1-3)
+**Recent Changes (0.3.0):**
+- Implemented System One decision mode per PLAN-systemone.md
+- Added decision model categories (decision: tev1, decision_vision: clef-flash)
+- Created versioned profile system with validation
+- Bundled nsfw and eggs starter profiles
+- Added profile management CLI (--dc-list, --dc-edit, --set-default-decision-profile)
+- Implemented capability checking via /api/show
+- Added /v1/systemone non-streaming decision transport
+- Support for inline boolean questions
+- Clipboard input with -c (leaves clipboard unchanged)
+- Sequential batch processing with --each
+- JSON and JSON Lines output
+- Comprehensive tests (193 total, 25 decision-specific)
+- Updated documentation (README, CHANGELOG, project_spec.md)
 
-Next Steps:
-- Continue monitoring for any bug reports
-- Consider adding new features based on user feedback
-- Maintain documentation as changes are made
+**Essential Decision Workflows:**
+```bash
+ol -dc ./photo.jpg                              # Default image profile (nsfw)
+ol -dc nsfw ./photo.jpg                         # Explicit profile
+ol -dc "Is this a nsfw image?" ./photo.jpg      # Inline boolean question
+ol -dc ./photo.jpg "Is this image blurry?"      # Question after image
+ol -dc eggs ./eggs.jpg                          # Counting profile
+ol -dc nsfw -c                                  # Clipboard image
+ol -dc nsfw --each *.jpg                        # Batch processing
+ol -dc nsfw --json ./photo.jpg                  # JSON output
+cat ticket.txt | ol -dc triage                  # Text decision from stdin
+ol --dc-list                                    # List profiles
+ol --dc-edit nsfw                               # Edit/create profile
+```
 
-Repo sync status (2026-07-14):
-- Local main fast-forwarded to origin/main at 57f884d (0.1.30).
-- Discarded local .gitignore edits; pulled remote .gitignore and feature commits.
-- Temporary SOP stash dropped after recording prompts; no other stashes remain.
+**Setup for Decision Mode:**
+```bash
+# Models are separate from chat models
+ol --set-default-model decision tev1
+ol --set-default-model decision_vision clef-flash
 
-Repo sync status (2026-08-02):
-- Fast-forwarded local main to origin/main at 72c4021 (0.1.33: -k/--keep, -u/--unload, --ps/--loaded).
-- Reapplied stashed host-normalization WIP on top; retargeted as 0.1.34 (not another 0.1.33).
-- Host normalization adds default port 11434 when omitted (normalize_ollama_host).
-- Fixes context-window preflight on remote hosts without a port (was hitting :80).
-- Richer context lookup (numeric string ctx, num_ctx from parameters/modelfile).
-- Better /api/ps and /api/show error detail in context-window failures.
-- Committed and pushed as 0.1.34 (host port normalization on top of 0.1.33).
+# Optional: set default profiles
+ol --set-default-decision-profile text triage
+ol --set-default-decision-profile vision nsfw
+
+# Optional: configure decision hosts
+ol --set-default-host decision http://server:11434
+ol --set-default-host decision_vision http://gpu-server:11434
+```
+
+**Project Structure:**
+- `src/ol/cli.py` - Main CLI implementation
+- `src/ol/config.py` - Configuration management
+- `src/ol/decision.py` - Decision mode implementation
+- `src/ol/decision_profiles/` - Bundled profiles (nsfw.yaml, eggs.yaml)
+- `tests/` - Comprehensive test suite
+- `PLAN-systemone.md` - Implementation specification
+- `AGENTS.md` - Agent collaboration rules
+- `project_spec.md` - Product specification
+
+**Key Files:**
+- pyproject.toml - Version 0.3.0, includes decision_profiles as package data
+- src/ol/__init__.py - Version 0.3.0
+- CHANGELOG.md - Full version history
+- README.md - User documentation (needs update for decision mode)
+
+**Testing Status:**
+- All 193 tests passing (pytest)
+- 25 decision-specific tests
+- Existing features preserved
+- No regressions detected
+
+**Branch:** cursor/systemone-implementation-7d03
+**Based on:** docs/systemone-plan (commit 300dfd59fdae0939e15b370a3ae037b50b79199a)

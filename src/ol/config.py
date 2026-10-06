@@ -95,15 +95,25 @@ DEFAULT_CONFIG = {
     'models': {
         'text': 'llama3.2',
         'vision': 'llama3.2-vision',
+        'decision': 'tev1',
+        'decision_vision': 'clef-flash',
         'last_used': None
     },
     'hosts': {
         'text': None,
-        'vision': None
+        'vision': None,
+        'decision': None,
+        'decision_vision': None
     },
     'temperature': {
         'text': 0.7,
         'vision': 0.7
+    },
+    'decisions': {
+        'default_profiles': {
+            'text': None,
+            'vision': 'nsfw'
+        }
     },
     'default_prompts': {
         '.py': 'Review this Python code and provide suggestions for improvement:',
@@ -270,4 +280,32 @@ class Config:
         host = self.get_host_for_type(type_)
         if self.debug:
             print(f"DEBUG: get_model_and_host_for_type({type_}) -> ({model}, {host})")
-        return model, host 
+        return model, host
+
+    def get_default_decision_profile(self, category: str = 'text') -> Optional[str]:
+        """
+        Get the default decision profile for text or vision category.
+        
+        Args:
+            category: 'text' or 'vision'
+        
+        Returns:
+            Profile name or None
+        """
+        return self.config.get('decisions', {}).get('default_profiles', {}).get(category)
+
+    def set_default_decision_profile(self, category: str, profile: Optional[str]) -> None:
+        """
+        Set the default decision profile for text or vision category.
+        
+        Args:
+            category: 'text' or 'vision'
+            profile: Profile name or None
+        """
+        if 'decisions' not in self.config:
+            self.config['decisions'] = {}
+        if 'default_profiles' not in self.config['decisions']:
+            self.config['decisions']['default_profiles'] = {}
+        
+        self.config['decisions']['default_profiles'][category] = profile
+        self._save_config(self.config) 

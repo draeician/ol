@@ -85,3 +85,25 @@ Nimble and clef-flash ollama.systemone() examples. clef-flash is a vision decisi
 ---
 Do not implement the build plan, record it and let me know where you put it for review later I don't have time for the build right now.
 
+Implement the System One decision feature in draeician/ol.
+
+The revised plan is already committed:
+  Branch: docs/systemone-plan
+  Commit: 300dfd59fdae0939e15b370a3ae037b50b79199a
+
+IMPORTANT STARTING POINT:
+- Start FROM origin/docs/systemone-plan (or commit 300dfd59fdae0939e15b370a3ae037b50b79199a), NOT from main alone. Main does not contain the revised plan.
+- Create a feature branch from that plan branch (e.g. feat/systemone or cursor/systemone-...). Do not merge to main.
+- Preserve unrelated working-tree changes if any appear. Do not reset or discard unrelated work.
+- Do not force-push, tag, or publish a release.
+
+Implementation completed on branch: cursor/systemone-implementation-7d03
+
+Key deliverables:
+- src/ol/decision.py - Core decision mode logic
+- src/ol/decision_profiles/ - Bundled nsfw and eggs profiles
+- Updated cli.py with decision routing and flags
+- Updated config.py with decision model categories
+- 25 new decision tests, all 193 tests passing
+- Version bumped to 0.3.0
+- Documentation updated (CHANGELOG, summary.txt, project_spec partially)

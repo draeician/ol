@@ -1945,3 +1945,184 @@ def test_call_ollama_api_echo_false_suppresses_stdout(mocker, capsys):
     captured = capsys.readouterr()
     assert result == 'Hello world'
     assert captured.out == ''
+
+
+def test_decision_mode_flag_aliases(mocker):
+    """Test that -dc, --dc, and --decision all work."""
+    from ol.decision import create_inline_boolean_profile
+    
+    # Mock decision execution to raise SystemExit (simulating completion)
+    mock_run_decision = mocker.patch('ol.cli.run_decision', side_effect=SystemExit(0))
+    mocker.patch('ol.cli.ensure_prompt_fits_context')
+    
+    # Test -dc
+    with pytest.raises(SystemExit):
+        main(['-dc', 'test'])
+    
+    # Test --dc
+    mock_run_decision.reset_mock()
+    mock_run_decision.side_effect = SystemExit(0)
+    with pytest.raises(SystemExit):
+        main(['--dc', 'test'])
+    
+    # Test --decision
+    mock_run_decision.reset_mock()
+    mock_run_decision.side_effect = SystemExit(0)
+    with pytest.raises(SystemExit):
+        main(['--decision', 'test'])
+
+
+def test_decision_mode_profile_list(mocker, capsys):
+    """Test --dc-list shows available profiles."""
+    mock_profiles = [
+        ('nsfw', 'Check NSFW content', Path('/fake/nsfw.yaml')),
+        ('eggs', 'Count eggs', Path('/fake/eggs.yaml')),
+    ]
+    mocker.patch('ol.decision.list_available_profiles', return_value=mock_profiles)
+    
+    with pytest.raises(SystemExit):
+        main(['--dc-list'])
+    
+    captured = capsys.readouterr()
+    assert 'nsfw' in captured.out
+    assert 'eggs' in captured.out
+    assert 'NSFW content' in captured.out
+
+
+def test_decision_mode_incompatible_with_ocr(capsys):
+    """Test that decision mode and OCR are incompatible."""
+    with pytest.raises(SystemExit):
+        main(['--ocr', '-dc', 'nsfw', 'test.jpg'])
+    
+    captured = capsys.readouterr()
+    assert 'cannot be combined' in captured.err.lower()
+
+
+def test_decision_mode_incompatible_with_temperature(capsys):
+    """Test that decision mode rejects --temperature."""
+    mocker_patch = MagicMock()
+    
+    with pytest.raises(SystemExit):
+        main(['-dc', 'nsfw', '--temperature', '0.9', 'test.jpg'])
+    
+    captured = capsys.readouterr()
+    assert 'temperature' in captured.err.lower()
+
+
+def test_decision_mode_requires_dc_flag_for_special_options(capsys):
+    """Test that --each, --json require -dc."""
+    with pytest.raises(SystemExit):
+        main(['--each', 'test.jpg'])
+    
+    captured = capsys.readouterr()
+    assert 'require decision mode' in captured.err.lower()
+    
+    with pytest.raises(SystemExit):
+        main(['--json', 'test.jpg'])
+    
+    captured = capsys.readouterr()
+    assert 'require decision mode' in captured.err.lower()
+
+
+def test_decision_mode_inline_question():
+    """Test creating inline boolean question."""
+    from ol.decision import create_inline_boolean_profile
+    
+    question = "Is this image blurry?"
+    profile = create_inline_boolean_profile(question)
+    
+    assert profile['version'] == 1
+    assert 'questions' in profile
+    assert profile['questions']['answer']['instructions'] == question
+
+
+def test_model_types_includes_decision():
+    """Test that MODEL_TYPES includes decision categories."""
+    from ol.cli import MODEL_TYPES
+    
+    assert 'decision' in MODEL_TYPES
+    assert 'decision_vision' in MODEL_TYPES
+
+
+def test_config_has_decision_defaults(tmp_path, monkeypatch):
+    """Test that config includes decision model defaults."""
+    from ol.config import Config, DEFAULT_CONFIG
+    
+    monkeypatch.setattr('ol.config.Path.home', lambda: tmp_path)
+    config = Config()
+    
+    assert 'decision' in config.config['models']
+    assert 'decision_vision' in config.config['models']
+    assert config.config['models']['decision'] == 'tev1'
+    assert config.config['models']['decision_vision'] == 'clef-flash'
+    
+    assert 'decision' in config.config['hosts']
+    assert 'decision_vision' in config.config['hosts']
+    
+    assert 'decisions' in config.config
+    assert 'default_profiles' in config.config['decisions']
+    assert config.config['decisions']['default_profiles']['vision'] == 'nsfw'
+
+
+def test_display_defaults_includes_decision_info(mocker, capsys, tmp_path, monkeypatch):
+    """Test that default display includes decision model info."""
+    from ol.cli import display_defaults
+    from ol.config import Config
+    
+    monkeypatch.setattr('ol.config.Path.home', lambda: tmp_path)
+    config = Config()
+    env = {}
+    
+    display_defaults(config, env)
+    
+    captured = capsys.readouterr()
+    assert 'Decision Models' in captured.out
+    assert 'tev1' in captured.out
+    assert 'clef-flash' in captured.out
+    assert 'Default Text Profile' in captured.out
+    assert 'Default Vision Profile' in captured.out
+
+
+def test_set_default_decision_profile(mocker, tmp_path, monkeypatch, capsys):
+    """Test setting default decision profile."""
+    monkeypatch.setattr('ol.config.Path.home', lambda: tmp_path)
+    
+    # Mock profile existence check
+    mocker.patch('ol.decision.find_profile_path', return_value=Path('/fake/nsfw.yaml'))
+    
+    with pytest.raises(SystemExit) as exc_info:
+        main(['--set-default-decision-profile', 'vision', 'nsfw'])
+    
+    assert exc_info.value.code == 0
+    captured = capsys.readouterr()
+    assert 'nsfw' in captured.out
+
+
+def test_decision_each_flag_multiple_images(mocker):
+    """Test --each flag processes images independently."""
+    # This is a more complex integration test that would need full mocking
+    # For now, just test that the flag is recognized
+    mock_run_decision = mocker.patch('ol.cli.run_decision', side_effect=SystemExit(0))
+    
+    # Create temp image files
+    import tempfile
+    with tempfile.NamedTemporaryFile(suffix='.jpg', delete=False) as f1:
+        f1.write(b'\xff\xd8\xff\xe0')  # JPEG magic bytes
+        img1 = f1.name
+    
+    with tempfile.NamedTemporaryFile(suffix='.jpg', delete=False) as f2:
+        f2.write(b'\xff\xd8\xff\xe0')
+        img2 = f2.name
+    
+    try:
+        with pytest.raises(SystemExit):
+            main(['-dc', 'nsfw', '--each', img1, img2])
+        
+        # Verify run_decision was called with batch_each=True
+        assert mock_run_decision.called
+        call_kwargs = mock_run_decision.call_args[1]
+        assert call_kwargs['batch_each'] is True
+    finally:
+        import os
+        os.unlink(img1)
+        os.unlink(img2)
