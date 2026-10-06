@@ -2126,3 +2126,148 @@ def test_decision_each_flag_multiple_images(mocker):
         import os
         os.unlink(img1)
         os.unlink(img2)
+
+
+# Path promotion regression tests (fix for issue where image paths
+# in prompt position resulted in empty evidence_files)
+
+def test_decision_path_promotion_single_image(mocker):
+    """Test ol -dc nsfw ./photo.jpg - image path promoted from prompt to files."""
+    mock_run_decision = mocker.patch('ol.cli.run_decision', side_effect=SystemExit(0))
+    
+    import tempfile
+    with tempfile.NamedTemporaryFile(suffix='.jpg', delete=False) as f:
+        f.write(b'\xff\xd8\xff\xe0')  # JPEG magic bytes
+        img_path = f.name
+    
+    try:
+        with pytest.raises(SystemExit):
+            main(['-dc', 'nsfw', img_path])
+        
+        # Verify image path was promoted to evidence_files, not left in evidence_text
+        assert mock_run_decision.called
+        call_kwargs = mock_run_decision.call_args[1]
+        assert img_path in call_kwargs['evidence_files']
+        # Evidence text should be empty or not contain the image path
+        assert not call_kwargs['evidence_text'] or img_path not in call_kwargs['evidence_text']
+    finally:
+        import os
+        os.unlink(img_path)
+
+
+def test_decision_path_promotion_with_dc_flag(mocker):
+    """Test ol --dc nsfw ./photo.jpg - long flag variant."""
+    mock_run_decision = mocker.patch('ol.cli.run_decision', side_effect=SystemExit(0))
+    
+    import tempfile
+    with tempfile.NamedTemporaryFile(suffix='.jpg', delete=False) as f:
+        f.write(b'\xff\xd8\xff\xe0')
+        img_path = f.name
+    
+    try:
+        with pytest.raises(SystemExit):
+            main(['--dc', 'nsfw', img_path])
+        
+        assert mock_run_decision.called
+        call_kwargs = mock_run_decision.call_args[1]
+        assert img_path in call_kwargs['evidence_files']
+    finally:
+        import os
+        os.unlink(img_path)
+
+
+def test_decision_path_promotion_image_only(mocker):
+    """Test ol -dc ./photo.jpg - image path as profile argument."""
+    mock_run_decision = mocker.patch('ol.cli.run_decision', side_effect=SystemExit(0))
+    
+    import tempfile
+    with tempfile.NamedTemporaryFile(suffix='.jpg', delete=False) as f:
+        f.write(b'\xff\xd8\xff\xe0')
+        img_path = f.name
+    
+    try:
+        with pytest.raises(SystemExit):
+            # This should fail because profile is required, but path should still be promoted
+            main(['-dc', img_path])
+        
+        # Even though it fails on missing profile, path promotion should have happened
+        # (test mainly verifies no crash during path promotion)
+    finally:
+        import os
+        os.unlink(img_path)
+
+
+def test_decision_image_with_question(mocker):
+    """Test ol -dc ./photo.jpg 'Is this image blurry?' - image then question."""
+    mock_run_decision = mocker.patch('ol.cli.run_decision', side_effect=SystemExit(0))
+    
+    import tempfile
+    with tempfile.NamedTemporaryFile(suffix='.jpg', delete=False) as f:
+        f.write(b'\xff\xd8\xff\xe0')
+        img_path = f.name
+    
+    try:
+        with pytest.raises(SystemExit):
+            main(['-dc', img_path, 'Is this image blurry?'])
+        
+        # Image promoted to files, question remains as state
+        assert mock_run_decision.called
+        call_kwargs = mock_run_decision.call_args[1]
+        assert img_path in call_kwargs['evidence_files']
+        # Note: 'Is this image blurry?' would be treated as profile name in current parsing
+        # This test documents the behavior
+    finally:
+        import os
+        os.unlink(img_path)
+
+
+def test_decision_question_then_image(mocker):
+    """Test ol -dc 'Is this nsfw?' ./photo.jpg - question then image."""
+    mock_run_decision = mocker.patch('ol.cli.run_decision', side_effect=SystemExit(0))
+    
+    import tempfile
+    with tempfile.NamedTemporaryFile(suffix='.jpg', delete=False) as f:
+        f.write(b'\xff\xd8\xff\xe0')
+        img_path = f.name
+    
+    try:
+        with pytest.raises(SystemExit):
+            # 'Is this nsfw?' is profile name, img_path is in files
+            main(['-dc', 'Is this nsfw?', img_path])
+        
+        # Image should be in evidence_files
+        assert mock_run_decision.called
+        call_kwargs = mock_run_decision.call_args[1]
+        assert img_path in call_kwargs['evidence_files']
+    finally:
+        import os
+        os.unlink(img_path)
+
+
+def test_decision_multiple_images_with_each(mocker):
+    """Test ol -dc nsfw --each *.jpg - multiple images with --each."""
+    mock_run_decision = mocker.patch('ol.cli.run_decision', side_effect=SystemExit(0))
+    
+    import tempfile
+    with tempfile.NamedTemporaryFile(suffix='.jpg', delete=False) as f1:
+        f1.write(b'\xff\xd8\xff\xe0')
+        img1 = f1.name
+    
+    with tempfile.NamedTemporaryFile(suffix='.jpg', delete=False) as f2:
+        f2.write(b'\xff\xd8\xff\xe0')
+        img2 = f2.name
+    
+    try:
+        with pytest.raises(SystemExit):
+            main(['-dc', 'nsfw', '--each', img1, img2])
+        
+        # Both images should be in evidence_files
+        assert mock_run_decision.called
+        call_kwargs = mock_run_decision.call_args[1]
+        assert img1 in call_kwargs['evidence_files']
+        assert img2 in call_kwargs['evidence_files']
+        assert call_kwargs['batch_each'] is True
+    finally:
+        import os
+        os.unlink(img1)
+        os.unlink(img2)

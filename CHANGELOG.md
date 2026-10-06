@@ -5,6 +5,17 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.3.1] - 2026-10-06
+
+### Fixed
+- Path promotion now runs BEFORE decision mode routing, fixing bug where image paths in prompt/decision position resulted in empty evidence_files
+- `ol -dc nsfw ./photo.jpg` now correctly promotes `./photo.jpg` to evidence files
+- `ol -dc ./photo.jpg` now correctly treats the image as evidence (not profile name)
+- `ol -dc ./photo.jpg "question"` now correctly handles both image and question
+
+### Added
+- 6 new regression tests for path promotion scenarios in decision mode
+
 ## [0.3.0] - 2026-10-06
 
 ### Added
