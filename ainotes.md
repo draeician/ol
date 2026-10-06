@@ -215,3 +215,7 @@ Vision and mixed-content requests now route through `/api/chat` endpoint with a 
 - Context-window failure messages include `/api/ps` and `/api/show` error detail.
 - Reconciled on top of remote 0.1.33 keep/unload/ps; version bumped to 0.1.34 (not a second 0.1.33).
 
+## Systemone decisions (not implemented)
+
+Review copy is `PLAN-systemone.md`. `--dc` posts to `/v1/systemone`. Text defaults to `nimble`; images default to `clef-flash` via a top-level base64 `images` array. Questions come from a profile or `--questions`. No code changes yet.
+

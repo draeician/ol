@@ -78,3 +78,10 @@ Examining the local repo as opposed to the remote, I think the local is more adv
 reconcile please.
 ---
 commit and push,
+---
+Ollama now support the system 1 jev type models.  I've upgrade the ollama on virindi to the most recent, and I"m including a transcript here for an explaination on how it works.    Analyze and come up with a plan for how we can integrate this?  I'm assuming we need to define a --dc or decision switch or command then define the decision model.  Then the prompt would go to that model. We should also assume if a file is given it should go as well.
+---
+Nimble and clef-flash ollama.systemone() examples. clef-flash is a vision decision model: same /v1/systemone call, plus an images array of base64 PNG, JPEG, or WebP. Decisions never return prose. Include vision routing and any quality-of-life ideas.
+---
+Do not implement the build plan, record it and let me know where you put it for review later I don't have time for the build right now.
+

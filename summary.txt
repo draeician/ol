@@ -15,6 +15,13 @@ Key Milestones:
 - TODO item completed: models listing functionality fully integrated into ol command
 - Added Modelfile download and save functionality
 
+Decision-model plan (not implemented; review PLAN-systemone.md):
+- Ollama 0.35+ exposes Jev-style decisions at POST /v1/systemone
+- --dc/--decision, models.decision default nimble, models.decision_vision default clef-flash
+- Prompt, stdin, and text/PDF files become state; PNG/JPEG/WebP go in the images array on the same endpoint
+- Questions come from a named profile or --questions file
+- Transcript "null"/"place" map to API types noul and choice; score is unchanged
+
 Recent Changes:
 - Version 0.1.33: Added -k/--keep (keep_alive=-1), -u/--unload (keep_alive=0), and --ps/--loaded (GET /api/ps) for endpoint memory management
 - Initialized Grok starter files from existing crules swarm modes and project_spec:
