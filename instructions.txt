@@ -107,3 +107,21 @@ Key deliverables:
 - 25 new decision tests, all 193 tests passing
 - Version bumped to 0.3.0
 - Documentation updated (CHANGELOG, summary.txt, project_spec partially)
+
+---
+Fix System One choice formatting in this ol repo (branch fix/choice-answer-field-and-human-probs).
+
+## Bug
+Ollama `/v1/systemone` returns choice answers as:
+```json
+{"type":"choice","choice":"humanoid","probabilities":{...},"confidence":0.67}
+```
+But `src/ol/decision.py` `format_decision_output` reads `answer.get('value')`, so human output is blank and JSON results show `"value": null, "label": null` even though `raw.choice` is correct.
+
+## Fix
+1. Read winning choice via `answer.get('choice') or answer.get('value')`.
+2. Human-readable choice output should show winner + option percentages sorted descending.
+3. JSON results must set `value`/`label` from the winning choice, keep full `probabilities`, include `confidence` if present.
+4. Add regression tests with mocked answers using the `choice` key.
+5. Patch bump 0.3.2 → 0.3.3 and CHANGELOG.
+6. Run full pytest. Commit on this branch. Push to origin and open a PR against main (gh pr create). Do not merge.
