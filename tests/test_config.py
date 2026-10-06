@@ -361,3 +361,62 @@ def test_deep_merge_hosts(tmp_path, monkeypatch):
     # Vision host should default to None
     assert config.get_host_for_type('vision') is None
 
+
+def test_set_host_for_decision_types(tmp_path, monkeypatch):
+    """Test that host can be set and retrieved for decision types."""
+    monkeypatch.setattr('ol.config.Path.home', lambda: tmp_path)
+    config = Config()
+    
+    # Test decision type
+    config.set_host_for_type('decision', 'http://decision-server:11434')
+    assert config.get_host_for_type('decision') == 'http://decision-server:11434'
+    
+    # Test decision_vision type
+    config.set_host_for_type('decision_vision', 'http://gpu-server:11434')
+    assert config.get_host_for_type('decision_vision') == 'http://gpu-server:11434'
+
+
+def test_set_model_for_decision_types(tmp_path, monkeypatch):
+    """Test that model can be set and retrieved for decision types."""
+    monkeypatch.setattr('ol.config.Path.home', lambda: tmp_path)
+    config = Config()
+    
+    # Test decision type
+    config.set_model_for_type('decision', 'custom-decision-model')
+    assert config.get_model_for_type('decision') == 'custom-decision-model'
+    
+    # Test decision_vision type
+    config.set_model_for_type('decision_vision', 'custom-vision-model')
+    assert config.get_model_for_type('decision_vision') == 'custom-vision-model'
+
+
+def test_set_temperature_for_decision_types(tmp_path, monkeypatch):
+    """Test that temperature can be set and retrieved for decision types."""
+    monkeypatch.setattr('ol.config.Path.home', lambda: tmp_path)
+    config = Config()
+    
+    # Test decision type
+    config.set_temperature_for_type('decision', 0.5)
+    assert config.get_temperature_for_type('decision') == 0.5
+    
+    # Test decision_vision type
+    config.set_temperature_for_type('decision_vision', 0.8)
+    assert config.get_temperature_for_type('decision_vision') == 0.8
+
+
+def test_config_persists_decision_types(tmp_path, monkeypatch):
+    """Test that decision type configs persist across instances."""
+    monkeypatch.setattr('ol.config.Path.home', lambda: tmp_path)
+    config = Config()
+    
+    # Set values for decision types
+    config.set_host_for_type('decision', 'http://decision-server:11434')
+    config.set_model_for_type('decision_vision', 'clef-flash')
+    config.set_temperature_for_type('decision', 0.6)
+    
+    # Create new config instance to verify persistence
+    config2 = Config()
+    assert config2.get_host_for_type('decision') == 'http://decision-server:11434'
+    assert config2.get_model_for_type('decision_vision') == 'clef-flash'
+    assert config2.get_temperature_for_type('decision') == 0.6
+

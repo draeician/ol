@@ -217,7 +217,10 @@ class Config:
 
     def get_temperature_for_type(self, type_: str = 'text') -> float:
         """Get the temperature for the specified type."""
-        temp = self.config.get('temperature', {}).get(type_, DEFAULT_CONFIG['temperature'][type_])
+        temp = self.config.get('temperature', {}).get(
+            type_, 
+            DEFAULT_CONFIG['temperature'].get(type_, 0.7)  # Default to 0.7 for new types
+        )
         if self.debug:
             print(f"DEBUG: get_temperature_for_type({type_}) -> {temp}")
         return float(temp)

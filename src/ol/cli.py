@@ -375,9 +375,8 @@ def list_installed_models(env: Dict[str, str], debug: bool = False) -> List[str]
 
 
 def complete_model_type(prefix: str, **kwargs) -> List[str]:
-    """Complete model type choices (text or vision for temperature/general, all for model)."""
-    # For temperature setters, only text and vision are valid
-    return [t for t in ('text', 'vision') if t.startswith(prefix)]
+    """Complete model type choices (all types for setters)."""
+    return [t for t in MODEL_TYPES if t.startswith(prefix)]
 
 
 def complete_model_type_all(prefix: str, **kwargs) -> List[str]:
@@ -1803,15 +1802,15 @@ def set_default_model(config: Config, model_type: str, model_name: str) -> None:
     
     Args:
         config: Config instance to update
-        model_type: Type of model ('text' or 'vision')
+        model_type: Type of model ('text', 'vision', 'decision', or 'decision_vision')
         model_name: Name of the model to set as default
     
     Raises:
         SystemExit: If model_type is invalid
     """
     # Validate model type
-    if model_type not in ('text', 'vision'):
-        print(f"Error: Model type must be 'text' or 'vision', got '{model_type}'", file=sys.stderr)
+    if model_type not in MODEL_TYPES:
+        print(f"Error: Model type must be one of {MODEL_TYPES}, got '{model_type}'", file=sys.stderr)
         sys.exit(1)
     
     # Set the model
@@ -1824,15 +1823,15 @@ def set_default_temperature(config: Config, model_type: str, temperature: float)
     
     Args:
         config: Config instance to update
-        model_type: Type of model ('text' or 'vision')
+        model_type: Type of model ('text', 'vision', 'decision', or 'decision_vision')
         temperature: Temperature value (0.0-2.0)
     
     Raises:
         SystemExit: If model_type or temperature is invalid
     """
     # Validate model type
-    if model_type not in ('text', 'vision'):
-        print(f"Error: Model type must be 'text' or 'vision', got '{model_type}'", file=sys.stderr)
+    if model_type not in MODEL_TYPES:
+        print(f"Error: Model type must be one of {MODEL_TYPES}, got '{model_type}'", file=sys.stderr)
         sys.exit(1)
     
     # Validate temperature
@@ -1859,15 +1858,15 @@ def set_default_host(config: Config, model_type: str, host: str) -> None:
     
     Args:
         config: Config instance to update
-        model_type: Type of model ('text' or 'vision')
+        model_type: Type of model ('text', 'vision', 'decision', or 'decision_vision')
         host: Host URL (e.g., 'http://server:11434' or 'server:11434')
     
     Raises:
         SystemExit: If model_type is invalid
     """
     # Validate model type
-    if model_type not in ('text', 'vision'):
-        print(f"Error: Model type must be 'text' or 'vision', got '{model_type}'", file=sys.stderr)
+    if model_type not in MODEL_TYPES:
+        print(f"Error: Model type must be one of {MODEL_TYPES}, got '{model_type}'", file=sys.stderr)
         sys.exit(1)
     
     # Set the host (normalization happens in config.set_host_for_type)
@@ -1913,6 +1912,7 @@ def main(argv: Optional[Sequence[str]] = None) -> None:
               
               # Set default host for model type:
               ol --set-default-host vision http://server:11434
+              ol --set-default-host decision_vision http://gpu-server:11434
 
               # OCR an image from the clipboard:
               ol --ocr
@@ -2011,17 +2011,17 @@ def main(argv: Optional[Sequence[str]] = None) -> None:
                        help='Ollama port (default: 11434). Overrides OLLAMA_HOST and configured hosts for this command.')
     set_default_model_arg = parser.add_argument(
         '--set-default-model', nargs=2, metavar=('TYPE', 'MODEL'),
-        help='Set default model for type (text or vision). Usage: --set-default-model TYPE MODEL_NAME',
+        help='Set default model for type (text, vision, decision, or decision_vision). Usage: --set-default-model TYPE MODEL_NAME',
     )
     set_default_model_arg.completer = complete_model_type_then_model
     set_default_temperature_arg = parser.add_argument(
         '--set-default-temperature', nargs=2, metavar=('TYPE', 'TEMPERATURE'),
-        help='Set default temperature for type (text or vision). Usage: --set-default-temperature TYPE TEMP',
+        help='Set default temperature for type (text, vision, decision, or decision_vision). Usage: --set-default-temperature TYPE TEMP',
     )
     set_default_temperature_arg.completer = complete_model_type
     set_default_host_arg = parser.add_argument(
         '--set-default-host', nargs=2, metavar=('TYPE', 'HOST'),
-        help='Set default host for type (text or vision). Usage: --set-default-host TYPE HOST_URL',
+        help='Set default host for type (text, vision, decision, or decision_vision). Usage: --set-default-host TYPE HOST_URL',
     )
     set_default_host_arg.completer = complete_model_type
     parser.add_argument('--temperature', type=float,

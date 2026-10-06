@@ -5,6 +5,16 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.3.2] - 2026-10-06
+
+### Fixed
+- CLI setters (`--set-default-host`, `--set-default-model`, `--set-default-temperature`) now accept all four model types: `text`, `vision`, `decision`, `decision_vision`
+- Help text updated to reflect support for decision types in setters
+
+### Changed
+- Tab completion for model types now includes `decision` and `decision_vision`
+- Error messages for invalid model types now show all valid options
+
 ## [0.3.1] - 2026-10-06
 
 ### Fixed
