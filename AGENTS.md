@@ -126,3 +126,11 @@ Shortcut keywords (act as Manager, then follow `GIT_POLICY.md`):
 | `.grok/agents/*.md` | Named agent profiles (`manager`, `coder`, `swarm`) |
 
 Use `grok inspect` to confirm rules and agents load.
+
+## Cursor Cloud specific instructions
+
+- `ol`, `pytest`, `ruff`, `black`, `mypy`, and `register-python-argcomplete` are on `PATH` via symlinks in `/usr/local/bin`. They come from an editable pipx install (`PIPX_HOME=/opt/pipx`, venv `/opt/pipx/venvs/ol`). Source edits under `src/ol/` apply without reinstalling. After dependency changes, rerun that pipx install and `pipx runpip ol install -r requirements-dev.txt`.
+- Check the CLI with `ol --version`. `python3 -m ol` does not run: the package has no `__main__` module. The entry point is the `ol` script.
+- Unit tests do not need Ollama: `pytest tests/ -q`.
+- A no-argument `ol` creates `~/.config/ol/` (config, history, templates, cache) and prints defaults. `ol --set-default-temperature text 0.2` writes `temperature.text` in `~/.config/ol/config.yaml`.
+- Model prompts need a separate Ollama server (`OLLAMA_HOST` or `-h`/`-p`). This environment does not install or start Ollama.
