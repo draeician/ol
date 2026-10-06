@@ -2194,6 +2194,31 @@ def main(argv: Optional[Sequence[str]] = None) -> None:
             save_modelfile(args.model, args.output_dir, args.debug)
         return
 
+    # EARLY PATH PROMOTION: Move filesystem paths from args.prompt/args.decision to args.files
+    # BEFORE any mode routing (OCR, decision, normal chat). This prevents bugs
+    # where image paths in the prompt/decision position result in empty evidence_files.
+    # Check args.prompt first
+    if args.prompt and len(args.prompt) < 255 and '\n' not in args.prompt:
+        if Path(args.prompt).exists() or args.prompt.startswith('~'):
+            expanded_path = str(Path(args.prompt).expanduser())
+            if Path(expanded_path).exists():
+                args.files.insert(0, expanded_path)
+                args.prompt = None
+                if args.debug:
+                    print(f"DEBUG: Promoted path from prompt to files: {expanded_path}", file=sys.stderr)
+    
+    # Also check args.decision for decision mode (e.g., ol -dc ./photo.jpg)
+    if hasattr(args, 'decision') and args.decision and isinstance(args.decision, str):
+        if len(args.decision) < 255 and '\n' not in args.decision:
+            if Path(args.decision).exists() or args.decision.startswith('~'):
+                expanded_path = str(Path(args.decision).expanduser())
+                if Path(expanded_path).exists():
+                    args.files.insert(0, expanded_path)
+                    # Clear decision so it doesn't try to use the path as a profile name
+                    args.decision = True  # Set to True (flag-only mode)
+                    if args.debug:
+                        print(f"DEBUG: Promoted path from decision arg to files: {expanded_path}", file=sys.stderr)
+
     # OCR must run before any STDIN reading so `ol --ocr` never consumes
     # piped/redirected input, and cannot be combined with content inputs.
     if args.ocr:
@@ -2376,14 +2401,6 @@ def main(argv: Optional[Sequence[str]] = None) -> None:
             if args.debug:
                 print(f"Warning: Failed to read from STDIN: {e}", file=sys.stderr)
             # Continue without STDIN input
-
-    # Check if the first positional argument is a file
-    if args.prompt and len(args.prompt) < 255 and not '\n' in args.prompt and (Path(args.prompt).exists() or args.prompt.startswith('~')):
-        # If it's a file, move it to files list and set prompt to None
-        expanded_path = str(Path(args.prompt).expanduser())
-        if Path(expanded_path).exists():
-            args.files.insert(0, expanded_path)
-            args.prompt = None
 
     # Handle --file / -f: read prompt text from a file
     if args.file:
