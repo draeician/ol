@@ -1343,7 +1343,92 @@ def test_set_default_host_invalid_type(tmp_path, monkeypatch, capsys):
         main(['--set-default-host', 'invalid', 'http://server:11434'])
     
     captured = capsys.readouterr()
-    assert 'Error: Model type must be \'text\' or \'vision\'' in captured.err
+    assert 'Error: Model type must be one of' in captured.err
+    assert "'invalid'" in captured.err
+
+
+def test_set_default_host_decision_types(tmp_path, monkeypatch, capsys):
+    """Test that --set-default-host works for decision types."""
+    monkeypatch.setattr('ol.config.Path.home', lambda: tmp_path)
+    from ol.config import Config
+    
+    # Test setting host for decision model
+    with pytest.raises(SystemExit) as exc:
+        main(['--set-default-host', 'decision', 'http://decision-server:11434'])
+    assert exc.value.code == 0
+    captured = capsys.readouterr()
+    assert 'Default decision host set to: http://decision-server:11434' in captured.out
+    
+    # Verify it was saved
+    config = Config()
+    assert config.get_host_for_type('decision') == 'http://decision-server:11434'
+    
+    # Test setting host for decision_vision model
+    with pytest.raises(SystemExit) as exc:
+        main(['--set-default-host', 'decision_vision', 'http://gpu-server:11434'])
+    assert exc.value.code == 0
+    captured = capsys.readouterr()
+    assert 'Default decision_vision host set to: http://gpu-server:11434' in captured.out
+    
+    # Verify it was saved
+    config = Config()
+    assert config.get_host_for_type('decision_vision') == 'http://gpu-server:11434'
+
+
+def test_set_default_model_decision_types(tmp_path, monkeypatch, capsys):
+    """Test that --set-default-model works for decision types."""
+    monkeypatch.setattr('ol.config.Path.home', lambda: tmp_path)
+    from ol.config import Config
+    
+    # Test setting model for decision type
+    with pytest.raises(SystemExit) as exc:
+        main(['--set-default-model', 'decision', 'tev1'])
+    assert exc.value.code == 0
+    captured = capsys.readouterr()
+    assert 'Default decision model set to: tev1' in captured.out
+    
+    # Verify it was saved
+    config = Config()
+    assert config.get_model_for_type('decision') == 'tev1'
+    
+    # Test setting model for decision_vision type
+    with pytest.raises(SystemExit) as exc:
+        main(['--set-default-model', 'decision_vision', 'clef-flash'])
+    assert exc.value.code == 0
+    captured = capsys.readouterr()
+    assert 'Default decision_vision model set to: clef-flash' in captured.out
+    
+    # Verify it was saved
+    config = Config()
+    assert config.get_model_for_type('decision_vision') == 'clef-flash'
+
+
+def test_set_default_temperature_decision_types(tmp_path, monkeypatch, capsys):
+    """Test that --set-default-temperature works for decision types."""
+    monkeypatch.setattr('ol.config.Path.home', lambda: tmp_path)
+    from ol.config import Config
+    
+    # Test setting temperature for decision type
+    with pytest.raises(SystemExit) as exc:
+        main(['--set-default-temperature', 'decision', '0.5'])
+    assert exc.value.code == 0
+    captured = capsys.readouterr()
+    assert 'Default decision temperature set to: 0.5' in captured.out
+    
+    # Verify it was saved
+    config = Config()
+    assert config.get_temperature_for_type('decision') == 0.5
+    
+    # Test setting temperature for decision_vision type
+    with pytest.raises(SystemExit) as exc:
+        main(['--set-default-temperature', 'decision_vision', '0.8'])
+    assert exc.value.code == 0
+    captured = capsys.readouterr()
+    assert 'Default decision_vision temperature set to: 0.8' in captured.out
+    
+    # Verify it was saved
+    config = Config()
+    assert config.get_temperature_for_type('decision_vision') == 0.8
 
 
 def test_set_default_host_normalization(tmp_path, monkeypatch, capsys):
@@ -1413,10 +1498,13 @@ def test_cli_flags_override_config_host(mocker, tmp_path, monkeypatch, capsys):
 
 
 def test_complete_model_type():
-    """Test model type completer filters text/vision by prefix."""
-    assert complete_model_type('') == ['text', 'vision']
+    """Test model type completer filters all model types by prefix."""
+    assert complete_model_type('') == ['text', 'vision', 'decision', 'decision_vision']
     assert complete_model_type('t') == ['text']
     assert complete_model_type('v') == ['vision']
+    assert complete_model_type('d') == ['decision', 'decision_vision']
+    assert complete_model_type('decision') == ['decision', 'decision_vision']
+    assert complete_model_type('decision_v') == ['decision_vision']
     assert complete_model_type('x') == []
 
 
@@ -1451,6 +1539,8 @@ def test_complete_model_type_then_model(mocker):
     combined = complete_model_type_then_model('')
     assert 'text' in combined
     assert 'vision' in combined
+    assert 'decision' in combined
+    assert 'decision_vision' in combined
     assert 'llama3.2' in combined
     assert 'codellama' in combined
 
