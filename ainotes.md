@@ -219,3 +219,9 @@ Vision and mixed-content requests now route through `/api/chat` endpoint with a 
 
 Review copy is `PLAN-systemone.md`. `--dc` posts to `/v1/systemone`. Text defaults to `nimble`; images default to `clef-flash` via a top-level base64 `images` array. Questions come from a profile or `--questions`. No code changes yet.
 
+
+## 0.3.4: Auto-imply --each for multi-image -dc
+
+- In run_decision, len(image_files) > 1 sets batch_each=True (same path as explicit --each).
+- Explicit --each kept; single-image warning unchanged.
+- Docs/spec updated; tests cover auto-each human + JSONL parity.

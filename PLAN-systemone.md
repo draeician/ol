@@ -180,7 +180,9 @@ Reuse low-level readers, not ordinary chat orchestration or `run_ocr()`.
 - Completion: extend existing argcomplete support for profiles, paths, and model/host types. Completion must not create files or trigger inference.
 - Batch: `--each` issues one request per image, sequentially at first, and retains input order and filenames. Explicit shared text context can be reused. Reject unsupported batch mixtures clearly. Report per-file failures, continue remaining items, and return overall failure when any item failed. Reuse validated profiles/model metadata within the invocation.
 
-For this release, multiple images require `--each`. A single System One request shares images across questions; that is not independent per-image classification. Do not silently combine inputs. Do not add concurrency, directory recursion, or automatic combined-image mode.
+Multiple images auto-imply `--each` (independent per-image decisions). Explicit
+`--each` remains valid. Do not silently combine multiple images into one request.
+Do not add concurrency, directory recursion, or automatic combined-image mode.
 
 ## 6. Verified API contract and implementation boundaries
 

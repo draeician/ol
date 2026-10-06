@@ -1329,6 +1329,10 @@ def run_decision(
     # Extract questions without local metadata
     questions = profile['questions']
     
+    # Auto-imply --each when multiple images are present
+    if len(image_files) > 1:
+        batch_each = True
+    
     # Batch processing
     if batch_each:
         if not has_images:
@@ -1395,16 +1399,7 @@ def run_decision(
             sys.exit(1)
     
     else:
-        # Single request (possibly with multiple images)
-        if len(image_files) > 1:
-            print(
-                "Error: Multiple images require --each in this release.\n"
-                "Use: ol -dc <profile> --each image1.jpg image2.jpg",
-                file=sys.stderr,
-            )
-            sys.exit(1)
-        
-        # Make decision request
+        # Single request (0 or 1 image)
         images = [img for _, img in image_files] if image_files else None
         
         try:
@@ -1966,7 +1961,10 @@ def main(argv: Optional[Sequence[str]] = None) -> None:
     )
     parser.add_argument(
         '--each', action='store_true',
-        help='Process each image independently (decision mode only)'
+        help=(
+            'Process each image independently (decision mode; '
+            'implied automatically when 2+ images are passed)'
+        )
     )
     parser.add_argument(
         '--json', action='store_true', dest='json_output',
