@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "ol"
-version = "0.2.0"
+version = "0.3.0"
 description = "A Python wrapper for the Ollama REPL command"
 readme = "README.md"
 requires-python = ">=3.7"
@@ -42,4 +42,7 @@ ol = "ol.cli:main"
 package-dir = {"" = "src"}
 
 [tool.setuptools.packages.find]
-where = ["src"] 
+where = ["src"]
+
+[tool.setuptools.package-data]
+ol = ["decision_profiles/*.yaml", "decision_profiles/*.yml", "decision_profiles/*.json"] 

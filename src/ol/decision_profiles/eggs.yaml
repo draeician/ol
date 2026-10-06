@@ -1,0 +1,32 @@
+version: 1
+description: Count individually distinguishable visible eggs.
+input:
+  require_image: true
+state: The attached image is the evidence.
+questions:
+  egg_count:
+    type: choice
+    instructions: >
+      How many individually distinguishable eggs are visible?
+      Do not infer hidden eggs from carton capacity.
+      Select unclear when the image does not support a reliable count.
+    criteria:
+      "0": null
+      "1": null
+      "2": null
+      "3": null
+      "4": null
+      "5": null
+      "6": null
+      "7": null
+      "8": null
+      "9": null
+      "10": null
+      "11": null
+      "12": null
+      "13+": Thirteen or more eggs are visible.
+      "unclear": A reliable count cannot be determined.
+results:
+  egg_count:
+    value_labels:
+      "unclear": REVIEW

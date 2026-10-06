@@ -19,7 +19,7 @@ from urllib.parse import urlparse
 import pypdf
 from .config import Config, normalize_ollama_host
 
-MODEL_TYPES = ('text', 'vision')
+MODEL_TYPES = ('text', 'vision', 'decision', 'decision_vision')
 
 # Keep headroom for a reply so prompt-fit checks are not exactly at the
 # context edge (which yields empty done_reason=length responses).
@@ -375,8 +375,24 @@ def list_installed_models(env: Dict[str, str], debug: bool = False) -> List[str]
 
 
 def complete_model_type(prefix: str, **kwargs) -> List[str]:
-    """Complete model type choices (text or vision)."""
+    """Complete model type choices (text or vision for temperature/general, all for model)."""
+    # For temperature setters, only text and vision are valid
+    return [t for t in ('text', 'vision') if t.startswith(prefix)]
+
+
+def complete_model_type_all(prefix: str, **kwargs) -> List[str]:
+    """Complete all model type choices including decision categories."""
     return [t for t in MODEL_TYPES if t.startswith(prefix)]
+
+
+def complete_decision_profile(prefix: str, **kwargs) -> List[str]:
+    """Complete decision profile names."""
+    try:
+        from .decision import list_available_profiles
+        profiles = list_available_profiles()
+        return [name for name, _, _ in profiles if name.startswith(prefix)]
+    except Exception:
+        return []
 
 
 def complete_model_name(prefix: str, **kwargs) -> List[str]:
@@ -1055,6 +1071,376 @@ def call_ollama_api(model: str, prompt: str, temperature: float, image_files: Op
 
     return "".join(chunks)
 
+def run_decision(
+    profile_name: Optional[str] = None,
+    inline_question: Optional[str] = None,
+    questions_file: Optional[str] = None,
+    evidence_text: Optional[str] = None,
+    evidence_files: Optional[List[str]] = None,
+    clipboard_input: bool = False,
+    batch_each: bool = False,
+    json_output: bool = False,
+    model: Optional[str] = None,
+    cli_host_provided: bool = False,
+    debug: bool = False,
+    stats: bool = False,
+    keep: bool = False,
+) -> None:
+    """
+    Execute a System One decision request.
+    
+    Args:
+        profile_name: Named profile to use
+        inline_question: Inline boolean question
+        questions_file: Path to bare questions JSON/YAML file
+        evidence_text: Text evidence (from args, stdin, -f)
+        evidence_files: List of evidence files (images, text)
+        clipboard_input: Whether to use clipboard image
+        batch_each: Whether to process images independently
+        json_output: Whether to output JSON
+        model: Explicit model override
+        cli_host_provided: Whether CLI host/port flags were provided
+        debug: Whether to show debug information
+        stats: Whether to show performance metrics
+        keep: Whether to keep model loaded
+    """
+    from .decision import (
+        load_profile,
+        create_inline_boolean_profile,
+        check_model_capabilities,
+        make_decision_request,
+        format_decision_output,
+        ProfileError,
+        CapabilityError,
+        DecisionError,
+    )
+    from .clipboard import get_clipboard_image_base64, ClipboardError
+    
+    config = Config()
+    
+    # Determine task source
+    profile = None
+    if questions_file:
+        # Load bare questions from file
+        if profile_name:
+            print(
+                "Error: cannot use both a profile and --questions",
+                file=sys.stderr,
+            )
+            sys.exit(1)
+        try:
+            with open(questions_file, 'r', encoding='utf-8') as f:
+                if questions_file.endswith('.json'):
+                    questions = json.load(f)
+                else:
+                    questions = yaml.safe_load(f)
+            
+            if not isinstance(questions, dict):
+                print(
+                    f"Error: Questions file must contain a dictionary",
+                    file=sys.stderr,
+                )
+                sys.exit(1)
+            
+            # Create minimal profile wrapper
+            profile = {
+                'version': 1,
+                'description': f'Questions from {questions_file}',
+                'questions': questions,
+            }
+            
+            # Basic validation
+            from .decision import validate_profile
+            validate_profile(profile, questions_file)
+            
+        except (FileNotFoundError, OSError) as e:
+            print(f"Error: Could not read questions file: {e}", file=sys.stderr)
+            sys.exit(1)
+        except (ProfileError, ValueError, yaml.YAMLError) as e:
+            print(f"Error: Invalid questions file: {e}", file=sys.stderr)
+            sys.exit(1)
+    
+    elif inline_question:
+        # Inline boolean question
+        if profile_name:
+            print(
+                "Error: cannot use both a profile and an inline question",
+                file=sys.stderr,
+            )
+            sys.exit(1)
+        profile = create_inline_boolean_profile(inline_question)
+    
+    else:
+        # Named profile or default
+        if profile_name:
+            try:
+                profile = load_profile(profile_name)
+            except ProfileError as e:
+                print(f"Error: {e}", file=sys.stderr)
+                sys.exit(1)
+    
+    # Collect image evidence
+    image_files = []
+    text_evidence_parts = []
+    
+    if clipboard_input:
+        # Clipboard image
+        try:
+            clipboard_image = get_clipboard_image_base64()
+            image_files.append(('clipboard', clipboard_image))
+        except ClipboardError as e:
+            print(f"Error: {e}", file=sys.stderr)
+            sys.exit(1)
+    
+    if evidence_files:
+        for file_path in evidence_files:
+            if not os.path.exists(file_path):
+                print(f"Error: File not found: {file_path}", file=sys.stderr)
+                sys.exit(1)
+            
+            if is_image_file(file_path):
+                # Read and validate image
+                try:
+                    with open(file_path, 'rb') as f:
+                        img_bytes = f.read()
+                    
+                    # Validate it's actually an image by checking magic bytes
+                    if not (img_bytes.startswith(b'\xff\xd8') or  # JPEG
+                            img_bytes.startswith(b'\x89PNG') or  # PNG
+                            img_bytes.startswith(b'RIFF') and b'WEBP' in img_bytes[:12]):  # WebP
+                        print(
+                            f"Error: File {file_path} is not a valid image",
+                            file=sys.stderr,
+                        )
+                        sys.exit(1)
+                    
+                    img_b64 = base64.b64encode(img_bytes).decode('utf-8')
+                    image_files.append((file_path, img_b64))
+                except (OSError, IOError) as e:
+                    print(f"Error reading image {file_path}: {e}", file=sys.stderr)
+                    sys.exit(1)
+            else:
+                # Text file
+                try:
+                    with open(file_path, 'r', encoding='utf-8') as f:
+                        text_content = f.read()
+                    if not text_content.strip():
+                        print(
+                            f"Error: Text file {file_path} is empty",
+                            file=sys.stderr,
+                        )
+                        sys.exit(1)
+                    text_evidence_parts.append(text_content)
+                except (OSError, IOError, UnicodeDecodeError) as e:
+                    print(
+                        f"Error reading text file {file_path}: {e}",
+                        file=sys.stderr,
+                    )
+                    sys.exit(1)
+    
+    if evidence_text:
+        text_evidence_parts.append(evidence_text)
+    
+    # Determine if we need an image-capable model
+    has_images = len(image_files) > 0
+    
+    # Apply default profile if no explicit task
+    if profile is None:
+        category = 'vision' if has_images else 'text'
+        default_profile_name = config.get_default_decision_profile(category)
+        
+        if default_profile_name:
+            try:
+                profile = load_profile(default_profile_name)
+            except ProfileError as e:
+                print(f"Error loading default profile: {e}", file=sys.stderr)
+                sys.exit(1)
+        else:
+            if category == 'text':
+                print(
+                    "Error: No decision task specified and no default text profile configured.\n"
+                    "Use: ol -dc <profile> [evidence...]\n"
+                    "Or: ol -dc \"<question>?\" [evidence...]\n"
+                    "Or configure a default: ol --set-default-decision-profile text <profile>",
+                    file=sys.stderr,
+                )
+            else:
+                print(
+                    "Error: No decision task specified and no default vision profile configured.\n"
+                    "Use: ol -dc <profile> <image>\n"
+                    "Or configure a default: ol --set-default-decision-profile vision <profile>",
+                    file=sys.stderr,
+                )
+            sys.exit(1)
+    
+    # Check profile input requirements
+    requires_image = profile.get('input', {}).get('require_image', False)
+    if requires_image and not has_images:
+        print(
+            f"Error: This profile requires an image",
+            file=sys.stderr,
+        )
+        sys.exit(1)
+    
+    # Determine model category and resolve model/host
+    model_category = 'decision_vision' if has_images else 'decision'
+    
+    # Model precedence: explicit -m > profile model > category model
+    if model is None:
+        model = profile.get('model') or config.get_model_for_type(model_category)
+    
+    # Host precedence: CLI -h/-p > OLLAMA_HOST > category host
+    env = get_env()
+    if not cli_host_provided and 'OLLAMA_HOST' not in env:
+        category_host = config.get_host_for_type(model_category)
+        if category_host:
+            env['OLLAMA_HOST'] = category_host
+            if debug:
+                print(f"Using configured {model_category} host: {category_host}", file=sys.stderr)
+    
+    base_url = get_ollama_base_url(env)
+    
+    # Check model capabilities
+    try:
+        check_model_capabilities(base_url, model, has_images, debug)
+    except CapabilityError as e:
+        print(f"Error: {e}", file=sys.stderr)
+        sys.exit(1)
+    
+    # Build state from text evidence or profile fallback
+    if text_evidence_parts:
+        # Try to parse as JSON if it's the only source and looks like JSON
+        if len(text_evidence_parts) == 1:
+            single_source = text_evidence_parts[0].strip()
+            if (single_source.startswith('{') or single_source.startswith('[')):
+                try:
+                    parsed = json.loads(single_source)
+                    state = parsed
+                except json.JSONDecodeError:
+                    state = single_source
+            else:
+                state = single_source
+        else:
+            # Concatenate multiple sources
+            state = '\n\n'.join(text_evidence_parts)
+    else:
+        # Use profile fallback state or neutral default
+        state = profile.get('state') or 'The attached evidence is being evaluated.'
+    
+    # Extract questions without local metadata
+    questions = profile['questions']
+    
+    # Batch processing
+    if batch_each:
+        if not has_images:
+            print(
+                "Error: --each requires at least one image",
+                file=sys.stderr,
+            )
+            sys.exit(1)
+        
+        if len(image_files) == 1:
+            print(
+                "Warning: --each with single image has no effect",
+                file=sys.stderr,
+            )
+        
+        # Process each image independently
+        results = []
+        failures = []
+        
+        for source, img_b64 in image_files:
+            try:
+                response = make_decision_request(
+                    base_url,
+                    model,
+                    state,
+                    questions,
+                    images=[img_b64],
+                    keep_alive=-1 if keep else None,
+                    debug=debug,
+                )
+                
+                output = format_decision_output(
+                    response,
+                    profile,
+                    source=source,
+                    json_output=json_output
+                )
+                
+                if json_output:
+                    # JSON Lines format for batch
+                    results.append(output)
+                else:
+                    print(output)
+            
+            except DecisionError as e:
+                error_msg = f"Error processing {source}: {e}"
+                if json_output:
+                    error_record = {
+                        'status': 'error',
+                        'source': source,
+                        'error': str(e)
+                    }
+                    results.append(json.dumps(error_record))
+                else:
+                    print(error_msg, file=sys.stderr)
+                failures.append(source)
+        
+        if json_output and results:
+            # Output JSON Lines
+            for line in results:
+                print(line)
+        
+        if failures:
+            sys.exit(1)
+    
+    else:
+        # Single request (possibly with multiple images)
+        if len(image_files) > 1:
+            print(
+                "Error: Multiple images require --each in this release.\n"
+                "Use: ol -dc <profile> --each image1.jpg image2.jpg",
+                file=sys.stderr,
+            )
+            sys.exit(1)
+        
+        # Make decision request
+        images = [img for _, img in image_files] if image_files else None
+        
+        try:
+            response = make_decision_request(
+                base_url,
+                model,
+                state,
+                questions,
+                images=images,
+                keep_alive=-1 if keep else None,
+                debug=debug,
+            )
+            
+            source = image_files[0][0] if image_files else ''
+            output = format_decision_output(
+                response,
+                profile,
+                source=source,
+                json_output=json_output
+            )
+            
+            print(output)
+            
+        except DecisionError as e:
+            if json_output:
+                error_record = {
+                    'status': 'error',
+                    'error': str(e)
+                }
+                print(json.dumps(error_record, indent=2))
+            else:
+                print(f"Error: {e}", file=sys.stderr)
+            sys.exit(1)
+
+
 def run_ocr(
     model: Optional[str] = None,
     temperature: Optional[float] = None,
@@ -1366,6 +1752,8 @@ def display_defaults(config: Config, env: Dict[str, str]) -> None:
     # Get model defaults
     text_model = config.get_model_for_type('text')
     vision_model = config.get_model_for_type('vision')
+    decision_model = config.get_model_for_type('decision')
+    decision_vision_model = config.get_model_for_type('decision_vision')
     last_used = config.get_last_used_model()
     
     # Get temperature defaults
@@ -1375,26 +1763,39 @@ def display_defaults(config: Config, env: Dict[str, str]) -> None:
     # Get host defaults
     text_host = config.get_host_for_type('text')
     vision_host = config.get_host_for_type('vision')
+    decision_host = config.get_host_for_type('decision')
+    decision_vision_host = config.get_host_for_type('decision_vision')
+    
+    # Get decision defaults
+    default_text_profile = config.get_default_decision_profile('text') or '(none)'
+    default_vision_profile = config.get_default_decision_profile('vision') or '(none)'
     
     # Format and print
     print("Current Configuration:")
     print(f"  Host: {host}")
-    if text_host:
-        print(f"  Default Text Host: {text_host}")
-    else:
-        print(f"  Default Text Host: localhost:11434 (default)")
-    if vision_host:
-        print(f"  Default Vision Host: {vision_host}")
-    else:
-        print(f"  Default Vision Host: localhost:11434 (default)")
+    print()
+    print("Chat Models:")
     print(f"  Default Text Model: {text_model}")
+    if text_host:
+        print(f"    Host: {text_host}")
     print(f"  Default Vision Model: {vision_model}")
+    if vision_host:
+        print(f"    Host: {vision_host}")
     print(f"  Default Text Temperature: {text_temp}")
     print(f"  Default Vision Temperature: {vision_temp}")
+    print()
+    print("Decision Models:")
+    print(f"  Default Decision Model: {decision_model}")
+    if decision_host:
+        print(f"    Host: {decision_host}")
+    print(f"  Default Decision Vision Model: {decision_vision_model}")
+    if decision_vision_host:
+        print(f"    Host: {decision_vision_host}")
+    print(f"  Default Text Profile: {default_text_profile}")
+    print(f"  Default Vision Profile: {default_vision_profile}")
+    print()
     if last_used:
-        print(f"  Last Used Model: {last_used}")
-    else:
-        print(f"  Last Used Model: None")
+        print(f"Last Used Model: {last_used}")
 
 def set_default_model(config: Config, model_type: str, model_name: str) -> None:
     """
@@ -1552,6 +1953,44 @@ def main(argv: Optional[Sequence[str]] = None) -> None:
                        help='Unload a model from memory (uses -m or the default text model)')
     parser.add_argument('--ocr', action='store_true',
                        help='OCR an image from the clipboard and replace the clipboard with the extracted text')
+    
+    # Decision mode arguments
+    dc_arg = parser.add_argument(
+        '-dc', '--dc', '--decision', dest='decision', nargs='?', const=True, metavar='PROFILE',
+        help='Decision mode: use a named profile, inline question, or default profile'
+    )
+    dc_arg.completer = complete_decision_profile
+    parser.add_argument(
+        '-c', '--clipboard', action='store_true',
+        help='Use image from clipboard as evidence (decision mode only)'
+    )
+    parser.add_argument(
+        '--each', action='store_true',
+        help='Process each image independently (decision mode only)'
+    )
+    parser.add_argument(
+        '--json', action='store_true', dest='json_output',
+        help='Output results as JSON (decision mode only)'
+    )
+    questions_arg = parser.add_argument(
+        '--questions', metavar='FILE',
+        help='Load bare questions from JSON/YAML file (decision mode only)'
+    )
+    questions_arg.completer = FilesCompleter()
+    parser.add_argument(
+        '--dc-list', action='store_true',
+        help='List available decision profiles'
+    )
+    dc_edit_arg = parser.add_argument(
+        '--dc-edit', metavar='PROFILE',
+        help='Edit or create a decision profile'
+    )
+    dc_edit_arg.completer = complete_decision_profile
+    parser.add_argument(
+        '--set-default-decision-profile', nargs=2, metavar=('CATEGORY', 'PROFILE'),
+        help='Set default decision profile for text or vision category'
+    )
+    
     file_arg = parser.add_argument(
         '-f', '--file', metavar='PROMPTFILE',
         help='Read prompt text from a file',
@@ -1637,6 +2076,56 @@ def main(argv: Optional[Sequence[str]] = None) -> None:
         model_type, host = args.set_default_host
         set_default_host(config, model_type, host)
         sys.exit(0)
+    
+    # Handle decision profile management
+    if args.dc_list:
+        from .decision import list_available_profiles
+        profiles = list_available_profiles()
+        if not profiles:
+            print("No decision profiles available.")
+        else:
+            print("Available decision profiles:")
+            for name, desc, path in profiles:
+                bundled = '(bundled)' if 'decision_profiles' in str(path) else ''
+                print(f"  {name:20s} {desc} {bundled}")
+            print()
+            # Show defaults
+            default_text = config.get_default_decision_profile('text') or '(none)'
+            default_vision = config.get_default_decision_profile('vision') or '(none)'
+            print(f"Default text profile:   {default_text}")
+            print(f"Default vision profile: {default_vision}")
+        sys.exit(0)
+    
+    if args.dc_edit:
+        from .decision import edit_profile
+        edit_profile(args.dc_edit, debug=args.debug)
+        sys.exit(0)
+    
+    if args.set_default_decision_profile:
+        category, profile_name = args.set_default_decision_profile
+        if category not in ('text', 'vision'):
+            print(
+                f"Error: Category must be 'text' or 'vision', got '{category}'",
+                file=sys.stderr,
+            )
+            sys.exit(1)
+        
+        # Validate profile exists if not None
+        if profile_name and profile_name.lower() not in ('none', 'null'):
+            from .decision import find_profile_path
+            if find_profile_path(profile_name) is None:
+                print(
+                    f"Error: Profile '{profile_name}' not found. "
+                    "Use --dc-list to see available profiles.",
+                    file=sys.stderr,
+                )
+                sys.exit(1)
+            config.set_default_decision_profile(category, profile_name)
+            print(f"Default {category} decision profile set to: {profile_name}")
+        else:
+            config.set_default_decision_profile(category, None)
+            print(f"Default {category} decision profile cleared")
+        sys.exit(0)
 
     # Handle version management commands first
     if args.version or args.check_updates or args.update:
@@ -1714,6 +2203,12 @@ def main(argv: Optional[Sequence[str]] = None) -> None:
                 file=sys.stderr,
             )
             sys.exit(1)
+        if args.decision or args.clipboard or args.each or args.json_output or args.questions:
+            print(
+                "Error: --ocr cannot be combined with decision mode.",
+                file=sys.stderr,
+            )
+            sys.exit(1)
         cli_host_provided = args.host is not None or args.port is not None
         run_ocr(
             model=args.model,
@@ -1724,6 +2219,148 @@ def main(argv: Optional[Sequence[str]] = None) -> None:
             cli_host_provided=cli_host_provided,
         )
         return
+    
+    # Decision mode routing (before normal STDIN/prompt processing)
+    if args.decision is not None:
+        # Validate incompatible flags
+        if args.temperature is not None:
+            print(
+                "Error: --temperature is not valid in decision mode.",
+                file=sys.stderr,
+            )
+            sys.exit(1)
+        
+        if args.unload:
+            print(
+                "Error: --unload cannot be combined with decision mode.",
+                file=sys.stderr,
+            )
+            sys.exit(1)
+        
+        # Decision mode flags only valid with decision mode
+        if not (args.clipboard or args.each or args.json_output or args.questions):
+            # These are checked later, just noting they require decision mode
+            pass
+        
+        # Parse decision argument
+        profile_name = None
+        inline_question = None
+        
+        if isinstance(args.decision, str):
+            # -dc VALUE provided
+            # Determine if it's a profile name or inline question
+            if args.decision.endswith('?') or ' ' in args.decision:
+                # Looks like a question
+                inline_question = args.decision
+            else:
+                # Treat as profile name
+                profile_name = args.decision
+        elif args.decision is True:
+            # -dc flag without value (will use default or error)
+            profile_name = None
+        
+        # Read evidence from various sources
+        evidence_text = None
+        
+        # Handle --file / -f for evidence text
+        if args.file:
+            try:
+                with open(args.file, 'r', encoding='utf-8') as f:
+                    evidence_text = f.read().rstrip('\n\r')
+            except (IOError, OSError, UnicodeDecodeError) as e:
+                print(
+                    f"Error: Failed to read evidence file '{args.file}': {e}",
+                    file=sys.stderr,
+                )
+                sys.exit(1)
+        
+        # Handle STDIN
+        if not sys.stdin.isatty():
+            try:
+                stdin_input = sys.stdin.read().rstrip('\n\r')
+                if stdin_input:
+                    if evidence_text:
+                        if args.file:
+                            print(
+                                "Error: cannot use both --file and STDIN in decision mode",
+                                file=sys.stderr,
+                            )
+                            sys.exit(1)
+                    evidence_text = stdin_input
+            except (IOError, OSError) as e:
+                if args.debug:
+                    print(f"Warning: Failed to read from STDIN: {e}", file=sys.stderr)
+        
+        # Handle positional prompt/question
+        # In decision mode, positional text before or after images can be:
+        # 1. An inline question (if no profile and looks like a question)
+        # 2. Additional evidence text (if profile/question already specified)
+        positional_text = args.prompt if args.prompt else None
+        
+        if positional_text and not profile_name and not inline_question:
+            # Could be inline question
+            if positional_text.endswith('?') or (
+                positional_text.startswith(('Is ', 'Does ', 'Can ', 'Will ', 'Should ', 'Are ', 'Do '))
+            ):
+                inline_question = positional_text
+            else:
+                # Ambiguous - might be a missing profile or evidence
+                # If files follow, treat as potential profile name
+                # Otherwise it's unclear
+                if args.files:
+                    # Try as profile first
+                    from .decision import find_profile_path
+                    if find_profile_path(positional_text):
+                        profile_name = positional_text
+                    else:
+                        # Not a profile, treat as evidence
+                        if evidence_text:
+                            evidence_text = f"{evidence_text}\n\n{positional_text}"
+                        else:
+                            evidence_text = positional_text
+                else:
+                    # No files, unclear intent
+                    print(
+                        f"Error: Ambiguous decision input '{positional_text}'.\n"
+                        "For a question, end with '?' or start with Is/Does/etc.\n"
+                        "For a profile, use a known profile name.\n"
+                        "Use --dc-list to see available profiles.",
+                        file=sys.stderr,
+                    )
+                    sys.exit(1)
+        elif positional_text:
+            # Profile/question already set, treat as evidence
+            if evidence_text:
+                evidence_text = f"{evidence_text}\n\n{positional_text}"
+            else:
+                evidence_text = positional_text
+        
+        cli_host_provided = args.host is not None or args.port is not None
+        
+        run_decision(
+            profile_name=profile_name,
+            inline_question=inline_question,
+            questions_file=args.questions,
+            evidence_text=evidence_text,
+            evidence_files=args.files or [],
+            clipboard_input=args.clipboard,
+            batch_each=args.each,
+            json_output=args.json_output,
+            model=args.model,
+            cli_host_provided=cli_host_provided,
+            debug=args.debug,
+            stats=args.stats,
+            keep=args.keep,
+        )
+        return
+    
+    # Error if decision-only flags used without decision mode
+    if args.clipboard or args.each or args.json_output or args.questions:
+        print(
+            "Error: --clipboard, --each, --json, and --questions require decision mode (-dc).",
+            file=sys.stderr,
+        )
+        sys.exit(1)
 
     # Check for STDIN input (piping/redirection)
     stdin_input = None

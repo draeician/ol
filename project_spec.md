@@ -128,6 +128,48 @@ pip install . or pipx uninstall ol
 
 ## Planned Enhancements
 
+### System One decision mode (planned, not implemented)
+
+The revised feature contract is [PLAN-systemone.md](PLAN-systemone.md), dated
+2026-10-06. It supersedes the earlier Nimble/profile-only decision proposal;
+older continuity notes are historical, not alternative specifications. The
+current CLI reference elsewhere in this file still describes implemented
+behavior. Do not advertise the following commands as available before delivery.
+
+- Keep ordinary `text`/`vision` models unchanged. Add independent `decision`
+  (default `tev1`) and `decision_vision` (default `clef-flash`) model/host
+  categories. Any image, even alongside text, requires a vision-capable decision
+  model. Validate capabilities; never drop evidence or silently switch models.
+- Store default tasks independently: `decisions.default_profiles.text: null`
+  and `decisions.default_profiles.vision: nsfw`. `ol -dc ./photo.jpg` runs the
+  configured image task; `ol -dc nsfw ./photo.jpg` selects it explicitly.
+- Explicit aliases are `-dc`, `--dc`, and `--decision`; preserve `-d` debugging.
+  Support inline boolean questions before or after an image. Counting and other
+  typed tasks use profiles/`--questions`, not invented answer ranges or chat.
+  `ol -dc eggs ./eggs.jpg` uses a choice profile with 0-12, 13+, and unclear.
+- Use versioned user-overridable profiles with input requirements, optional model,
+  fallback state, API questions, and local result rules. Bundle editable `nsfw`
+  and `eggs` starters. NSFW policy and review thresholds are illustrative, not
+  calibrated guarantees. Errors are not negative classifications.
+- Add explicit clipboard input (`-c`, leaving the clipboard unchanged), offline
+  profile list/edit, completion, sequential `--each`, and stable human output
+  with explicit JSON/JSONL. Multiple images require `--each` in the first release.
+- Decision requests alone use non-streaming `POST /v1/systemone`, with top-level
+  base64 images. Ordinary text/image requests retain their existing transports.
+  Do not add temperatures, an SDK, silent fallback, or automatic server changes.
+- Dispatch before ordinary file-only prompt/model assignment. Resolve CLI host
+  overrides, environment, and category host in that order without global
+  mutation. Preserve non-decision behavior, including `--ocr`.
+- Acceptance requires parser/profile/routing/error/output tests, the full
+  regression suite, packaged profile verification, and an isolated installed
+  CLI smoke test. Report live testing separately from mocks. Update this spec,
+  README, changelog, and continuity notes to match delivered behavior.
+
+Implementation and release boundaries, exact schemas, input resolution, and
+verification requirements are specified in PLAN-systemone.md. This planning
+change does not implement the feature, alter runtime defaults, or authorize a
+merge, tag, release, model download, or inference-server reconfiguration.
+
 ### System Prompts and Templates
 - Pre-defined system prompts for different tasks
 - Custom prompt templates with variables
