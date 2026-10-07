@@ -135,3 +135,24 @@ Today, multiple image files with `-dc` require an explicit `--each` flag; withou
 "Multiple images require --each in this release."
 
 Change behavior so that when 2+ images are passed to decision mode, `--each` is implied automatically (process each image independently, same as today's `--each` path). Keep `--each` as a valid explicit flag (no-op when already implied, or still allowed).
+
+---
+# Task: Clean Ctrl+C exit (no stack trace)
+
+Repo: ~/git/personal/ol (GitHub: draeician/ol). New branch from up-to-date main.
+
+## Goal
+Pressing Ctrl+C during `ol` (especially `-dc` / multi-image loops) currently dumps a Python traceback. Catch `KeyboardInterrupt` at the top-level CLI entry (and in long-running decision loops if needed) and exit cleanly with a short message or silent exit code 130 — no stack trace to the user.
+
+## Constraints
+- Smallest correct fix; prefer top-level `main()` / `__main__` guard plus any loop that would otherwise leave partial ugly output.
+- Don't swallow other exceptions.
+- Bump 0.3.4 → 0.3.5; CHANGELOG note.
+- Tests for KeyboardInterrupt → clean exit (no traceback).
+- Full pytest; commit; push; open PR. Do NOT merge.
+- No sudo / system installs / force-push main / unrelated dirs.
+
+## Success
+1. Ctrl+C during `ol -dc ...` exits without traceback
+2. Exit code 130 (or documented equivalent)
+3. PR open as 0.3.5
