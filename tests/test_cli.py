@@ -2502,3 +2502,63 @@ def test_decision_auto_each_matches_explicit_each_json(mocker, capsys):
         import os
         os.unlink(img1)
         os.unlink(img2)
+
+
+def test_keyboard_interrupt_exits_cleanly_no_traceback(mocker, capsys):
+    """Ctrl+C at top-level main exits with 130 and no traceback."""
+    mocker.patch('ol.init.initialize_ol')
+    mocker.patch(
+        'argparse.ArgumentParser.parse_args',
+        side_effect=KeyboardInterrupt,
+    )
+
+    with pytest.raises(SystemExit) as exc_info:
+        main([])
+
+    assert exc_info.value.code == 130
+    captured = capsys.readouterr()
+    assert 'Traceback' not in captured.err
+    assert 'Traceback' not in captured.out
+    assert 'Interrupted.' in captured.err
+
+
+def test_keyboard_interrupt_during_decision_exits_cleanly(mocker, capsys):
+    """Ctrl+C during decision mode (-dc) exits with 130 and no traceback."""
+    mocker.patch('ol.cli.run_decision', side_effect=KeyboardInterrupt)
+
+    with pytest.raises(SystemExit) as exc_info:
+        main(['-dc', 'nsfw'])
+
+    assert exc_info.value.code == 130
+    captured = capsys.readouterr()
+    assert 'Traceback' not in captured.err
+    assert 'Traceback' not in captured.out
+    assert 'Interrupted.' in captured.err
+
+
+def test_keyboard_interrupt_during_each_loop_exits_cleanly(mocker, capsys):
+    """Ctrl+C mid multi-image decision loop exits with 130 and no traceback."""
+    import tempfile
+
+    _mock_decision_transport(mocker, side_effect=KeyboardInterrupt)
+
+    with tempfile.NamedTemporaryFile(suffix='.jpg', delete=False) as f1:
+        f1.write(b'\xff\xd8\xff\xe0')
+        img1 = f1.name
+    with tempfile.NamedTemporaryFile(suffix='.jpg', delete=False) as f2:
+        f2.write(b'\xff\xd8\xff\xe0')
+        img2 = f2.name
+
+    try:
+        with pytest.raises(SystemExit) as exc_info:
+            main(['-dc', 'nsfw', img1, img2])
+
+        assert exc_info.value.code == 130
+        captured = capsys.readouterr()
+        assert 'Traceback' not in captured.err
+        assert 'Traceback' not in captured.out
+        assert 'Interrupted.' in captured.err
+    finally:
+        import os
+        os.unlink(img1)
+        os.unlink(img2)

@@ -1870,7 +1870,20 @@ def set_default_host(config: Config, model_type: str, host: str) -> None:
     print(f"Default {model_type} host set to: {normalized_host}")
 
 def main(argv: Optional[Sequence[str]] = None) -> None:
-    """Main entry point for the ol command."""
+    """Main entry point for the ol command.
+
+    Catches KeyboardInterrupt so Ctrl+C exits cleanly with code 130
+    (128 + SIGINT) and no Python traceback.
+    """
+    try:
+        _main(argv)
+    except KeyboardInterrupt:
+        print("\nInterrupted.", file=sys.stderr)
+        sys.exit(130)
+
+
+def _main(argv: Optional[Sequence[str]] = None) -> None:
+    """Implement CLI argument parsing and command dispatch."""
     # Initialize configuration on CLI execution (not on import)
     from .init import initialize_ol
     initialize_ol()

@@ -225,3 +225,11 @@ Review copy is `PLAN-systemone.md`. `--dc` posts to `/v1/systemone`. Text defaul
 - In run_decision, len(image_files) > 1 sets batch_each=True (same path as explicit --each).
 - Explicit --each kept; single-image warning unchanged.
 - Docs/spec updated; tests cover auto-each human + JSONL parity.
+
+
+## 0.3.5: Clean Ctrl+C exit
+
+- Thin `main()` wraps `_main()` and catches only `KeyboardInterrupt`.
+- Exit code 130 (128 + SIGINT); stderr message "Interrupted."
+- Console script entry `ol.cli:main` is covered; no need for per-loop catch
+  unless we want partial-result messaging later.
