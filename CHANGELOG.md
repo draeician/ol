@@ -5,6 +5,18 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.3.7] - 2026-10-06
+
+### Changed
+- Bundled `nsfw` decision profile now uses a workplace / HR bar: NSFW is
+  content that could not be shown at work without HR involvement (bare
+  breasts/nipples, sexualized buttocks or genital areas, explicit sexual
+  activity, visible genitals, pornographic posing, sexual-intent nudity,
+  and similar). SFW covers fully clothed non-sexual images, ordinary
+  non-revealing swimwear/sportswear, and non-sexual art/photos without
+  nudity or sexual focus. Labels remain SFW / REVIEW / NSFW; thresholds
+  stay 0.20 / 0.80
+
 ## [0.3.6] - 2026-10-06
 
 ### Fixed

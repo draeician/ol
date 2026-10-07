@@ -596,6 +596,20 @@ def test_bundled_profiles_exist():
     validate_profile(nsfw_profile, 'nsfw')
     assert nsfw_profile['version'] == 1
     assert 'nsfw' in nsfw_profile['questions']
+    # Workplace / HR bar (not genitals-only)
+    desc = nsfw_profile.get('description', '')
+    true_crit = nsfw_profile['questions']['nsfw']['criteria']['true']
+    false_crit = nsfw_profile['questions']['nsfw']['criteria']['false']
+    assert 'HR' in desc or 'workplace' in desc.lower()
+    assert 'bare breasts' in true_crit.lower() or 'nipples' in true_crit.lower()
+    assert 'fully clothed' in false_crit.lower()
+    assert nsfw_profile['results']['nsfw']['labels'] == {
+        'negative': 'SFW',
+        'uncertain': 'REVIEW',
+        'positive': 'NSFW',
+    }
+    assert nsfw_profile['results']['nsfw']['negative_below'] == 0.20
+    assert nsfw_profile['results']['nsfw']['positive_at_or_above'] == 0.80
     
     # Check eggs profile
     eggs_path = bundled_dir / 'eggs.yaml'

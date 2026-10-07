@@ -246,3 +246,12 @@ Review copy is `PLAN-systemone.md`. `--dc` posts to `/v1/systemone`. Text defaul
   filenames when a profile prefix matches; path-like / unmatched prefixes
   still complete files for path-promotion.
 - Verified via `_ARGCOMPLETE_STDOUT_FILENAME` simulations.
+
+## 0.3.7: Tighten bundled nsfw workplace/HR bar
+
+- Rewrote bundled `nsfw.yaml` criteria: NSFW = could not show at work without HR.
+- True includes bare breasts/nipples, sexualized buttocks/genital areas, explicit activity,
+  visible genitals, pornographic posing, sexual-intent nudity.
+- False: fully clothed non-sexual; ordinary non-revealing swimwear/sportswear; non-sexual art.
+- Labels SFW/REVIEW/NSFW; thresholds unchanged at 0.20/0.80.
+- Test `test_bundled_profiles_exist` asserts workplace/HR framing.
