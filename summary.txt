@@ -21,7 +21,13 @@ ol is a Python CLI wrapper for Ollama, supporting both local and remote instance
 - Tab completion (argcomplete)
 - Version management
 
-**Version:** 0.3.6 (2026-10-06)
+**Version:** 0.3.7 (2026-10-06)
+
+**Recent Changes (0.3.7):**
+- Bundled nsfw decision profile uses workplace/HR bar for sexual content
+- NSFW true: bare breasts/nipples, sexualized buttocks/genital areas, explicit sex, visible genitals, porn posing, sexual-intent nudity
+- SFW false: fully clothed non-sexual; ordinary non-revealing swimwear/sportswear; non-sexual art/photos
+- Labels SFW/REVIEW/NSFW; thresholds 0.20/0.80 unchanged
 
 **Recent Changes (0.3.6):**
 - Fixed -dc/--decision shell tab completion (argcomplete nargs='?' pitfall)

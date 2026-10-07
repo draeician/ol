@@ -188,3 +188,18 @@ Make Tab work for:
 1. Simulated `_ARGCOMPLETE=1` for `ol -dc ns` returns `nsfw` (and filters by prefix).
 2. `ol -dc nsfw 000` returns matching image filenames, not a wall of unrelated flags as the only useful hits.
 3. PR open as 0.3.6.
+---
+# Task: Tighten bundled nsfw decision profile (workplace / HR bar)
+
+Repo: ~/git/personal/ol (draeician/ol). New branch from up-to-date main.
+
+## Goal
+Rewrite `src/ol/decision_profiles/nsfw.yaml` criteria so NSFW means: content that could not be shown at work without HR being involved.
+
+Include as **true** (NSFW): bare breasts / nipples, buttocks / genital areas (covered or not if sexualized), explicit sexual activity, visible genitals, pornographic posing, clear sexual intent nudity, and similar workplace-inappropriate sexual content.
+
+**false** (SFW): fully clothed non-sexual images; ordinary non-revealing swimwear/sportswear that would pass a normal office filter; non-sexual art/photos without nudity or sexual focus.
+
+Keep labels SFW / REVIEW / NSFW. Thresholds can stay 0.20 / 0.80 unless a small tweak clearly helps. Update description text. Bump 0.3.6 → 0.3.7; CHANGELOG. Tests if any assert old criteria strings. Full pytest; commit; push; open PR. Do NOT merge.
+
+No sudo / system installs / force-push main.
