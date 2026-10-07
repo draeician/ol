@@ -384,14 +384,81 @@ def complete_model_type_all(prefix: str, **kwargs) -> List[str]:
     return [t for t in MODEL_TYPES if t.startswith(prefix)]
 
 
+def looks_like_path_prefix(prefix: str) -> bool:
+    """Return True if prefix looks like a filesystem path, not a profile name.
+
+    Used by decision-mode completers so ``ol -dc ./pho`` / ``ol -dc ~/img``
+    prefer file completion (path-promotion) over profile names.
+    """
+    if not prefix:
+        return False
+    return prefix[0] in './~' or '/' in prefix or '\\' in prefix
+
+
+def decision_mode_active(parsed_args: Optional[object]) -> bool:
+    """Return True when ``-dc``/``--decision`` is present on the command line."""
+    if parsed_args is None:
+        return False
+    return getattr(parsed_args, 'decision', None) is not None
+
+
 def complete_decision_profile(prefix: str, **kwargs) -> List[str]:
-    """Complete decision profile names."""
+    """Complete decision profile names for ``-dc`` / ``--dc-edit``.
+
+    Path-like prefixes are left to the files completer so evidence paths
+    (``ol -dc ./photo.jpg``) are not fought by profile matching.
+    """
+    if looks_like_path_prefix(prefix):
+        return []
     try:
         from .decision import list_available_profiles
         profiles = list_available_profiles()
         return [name for name, _, _ in profiles if name.startswith(prefix)]
     except Exception:
         return []
+
+
+def complete_prompt_positional(
+    prefix: str, parsed_args: Optional[object] = None, **kwargs
+) -> List[str]:
+    """Complete the optional prompt positional.
+
+    In decision mode the optional prompt would otherwise swallow trailing
+    file tokens during completion; defer to the files completer instead.
+    """
+    if decision_mode_active(parsed_args):
+        return []
+    return list(FilesCompleter()(prefix, **kwargs))
+
+
+def complete_files_positional(
+    prefix: str, parsed_args: Optional[object] = None, **kwargs
+) -> List[str]:
+    """Complete content/evidence file paths.
+
+    When ``-dc`` is present but no profile value has been consumed yet
+    (``decision is True``):
+
+    - bare ``ol -dc <Tab>`` → no files (profiles only)
+    - path-like prefix → files (path-promotion)
+    - other non-empty prefix → files only if no profile matches, so
+      ``ol -dc ns`` stays on profiles while ``ol -dc 000`` still gets images
+
+    After a profile is chosen (``decision`` is a string), always complete
+    files.
+    """
+    files = list(FilesCompleter()(prefix, **kwargs))
+    if not decision_mode_active(parsed_args):
+        return files
+    decision = getattr(parsed_args, 'decision', None)
+    if decision is True:
+        if not prefix:
+            return []
+        if looks_like_path_prefix(prefix):
+            return files
+        if complete_decision_profile(prefix):
+            return []
+    return files
 
 
 def complete_model_name(prefix: str, **kwargs) -> List[str]:
@@ -2041,15 +2108,17 @@ def _main(argv: Optional[Sequence[str]] = None) -> None:
         'prompt', nargs='?', default=None,
         help='Prompt to send to Ollama (optional if files are provided)',
     )
-    prompt_arg.completer = FilesCompleter()
+    prompt_arg.completer = complete_prompt_positional
     files_arg = parser.add_argument(
         'files', nargs='*',
         help='Files to inject into the prompt (text/code, PDFs, images). PDFs are summarized via text extraction; for remote vision models, use absolute image paths.',
     )
-    files_arg.completer = FilesCompleter()
+    files_arg.completer = complete_files_positional
 
-    # Shell tab completion (no-op unless _ARGCOMPLETE is set by the shell)
-    argcomplete.autocomplete(parser)
+    # Shell tab completion (no-op unless _ARGCOMPLETE is set by the shell).
+    # always_complete_options=False avoids dumping every flag when completing
+    # decision-mode file tokens after ``-dc`` (nargs='?' optional PROFILE).
+    argcomplete.autocomplete(parser, always_complete_options=False)
 
     args = parser.parse_args(argv)
 

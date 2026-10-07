@@ -21,6 +21,11 @@ from ol.cli import (
     complete_model_type,
     complete_model_name,
     complete_model_type_then_model,
+    looks_like_path_prefix,
+    decision_mode_active,
+    complete_decision_profile,
+    complete_prompt_positional,
+    complete_files_positional,
     estimate_prompt_tokens,
     get_effective_context_length,
     ensure_prompt_fits_context,
@@ -43,6 +48,15 @@ def _isolate_cli_runtime(mocker, tmp_path, monkeypatch):
     mocker.patch('ol.cli.ensure_prompt_fits_context')
     monkeypatch.setattr('ol.config.Path.home', lambda: tmp_path)
     monkeypatch.delenv('OLLAMA_HOST', raising=False)
+    # Prevent ambient shell argcomplete env from short-circuiting CLI tests
+    for key in (
+        '_ARGCOMPLETE',
+        'COMP_LINE',
+        'COMP_POINT',
+        '_ARGCOMPLETE_IFS',
+        '_ARGCOMPLETE_STDOUT_FILENAME',
+    ):
+        monkeypatch.delenv(key, raising=False)
 
 
 def create_mock_streaming_response(response_text, done=True, done_reason='stop'):
@@ -1543,6 +1557,110 @@ def test_complete_model_type_then_model(mocker):
     assert 'decision_vision' in combined
     assert 'llama3.2' in combined
     assert 'codellama' in combined
+
+
+def test_looks_like_path_prefix():
+    """Path-like prefixes are detected for decision-mode completion."""
+    assert looks_like_path_prefix('./photo.jpg')
+    assert looks_like_path_prefix('../img')
+    assert looks_like_path_prefix('/tmp/a')
+    assert looks_like_path_prefix('~/pic')
+    assert looks_like_path_prefix('dir/file')
+    assert not looks_like_path_prefix('')
+    assert not looks_like_path_prefix('ns')
+    assert not looks_like_path_prefix('nsfw')
+    assert not looks_like_path_prefix('0001')
+
+
+def test_decision_mode_active():
+    """decision_mode_active mirrors -dc presence on parsed args."""
+    assert decision_mode_active(None) is False
+
+    class _Args:
+        def __init__(self, decision):
+            self.decision = decision
+
+    assert decision_mode_active(_Args(None)) is False
+    assert decision_mode_active(_Args(True)) is True
+    assert decision_mode_active(_Args('nsfw')) is True
+
+
+def test_complete_decision_profile_filters_by_prefix(mocker):
+    """Profile completer returns matching names and skips path-like prefixes."""
+    mocker.patch(
+        'ol.decision.list_available_profiles',
+        return_value=[
+            ('nsfw', Path('/bundled/nsfw.yaml'), 'NSFW check'),
+            ('eggs', Path('/bundled/eggs.yaml'), 'Count eggs'),
+            ('humanoid', Path('/user/humanoid.yaml'), 'Detect humanoid'),
+        ],
+    )
+    assert complete_decision_profile('ns') == ['nsfw']
+    assert complete_decision_profile('') == ['nsfw', 'eggs', 'humanoid']
+    assert complete_decision_profile('x') == []
+    assert complete_decision_profile('./pho') == []
+    assert complete_decision_profile('~/img') == []
+
+
+def test_complete_prompt_positional_suppressed_in_decision_mode(mocker):
+    """Optional prompt completer yields nothing when -dc is active."""
+    mocker.patch(
+        'ol.cli.FilesCompleter',
+        return_value=lambda prefix, **kwargs: ['prompt.txt'],
+    )
+
+    class _Args:
+        decision = 'nsfw'
+
+    assert complete_prompt_positional('pro', parsed_args=_Args()) == []
+
+    class _NoDc:
+        decision = None
+
+    assert complete_prompt_positional('pro', parsed_args=_NoDc()) == ['prompt.txt']
+
+
+def test_complete_files_positional_decision_slot_rules(mocker):
+    """Files completer respects profile-slot vs post-profile decision rules."""
+    all_files = ['0001.jpg', '0002.png', 'nsfw_note.txt']
+
+    def _fake_files(prefix, **kwargs):
+        if prefix in ('', './'):
+            return list(all_files)
+        return [name for name in all_files if name.startswith(prefix)]
+
+    mocker.patch('ol.cli.FilesCompleter', return_value=_fake_files)
+    mocker.patch(
+        'ol.decision.list_available_profiles',
+        return_value=[
+            ('nsfw', Path('/bundled/nsfw.yaml'), 'NSFW check'),
+            ('eggs', Path('/bundled/eggs.yaml'), 'Count eggs'),
+        ],
+    )
+
+    class _OpenDc:
+        decision = True
+
+    # Bare ol -dc <Tab>: profiles only (no file dump)
+    assert complete_files_positional('', parsed_args=_OpenDc()) == []
+    # Partial profile: prefer profiles over incidental filenames
+    assert complete_files_positional('ns', parsed_args=_OpenDc()) == []
+    # Bare filename / path-promotion with no profile match
+    assert complete_files_positional('000', parsed_args=_OpenDc()) == [
+        '0001.jpg',
+        '0002.png',
+    ]
+    assert complete_files_positional('./', parsed_args=_OpenDc()) == list(all_files)
+
+    class _ProfileSet:
+        decision = 'nsfw'
+
+    # After profile chosen: always complete files
+    assert complete_files_positional('000', parsed_args=_ProfileSet()) == [
+        '0001.jpg',
+        '0002.png',
+    ]
+    assert complete_files_positional('', parsed_args=_ProfileSet()) == list(all_files)
 
 
 def test_estimate_prompt_tokens_conservative():

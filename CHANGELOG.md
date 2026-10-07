@@ -5,6 +5,20 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.3.6] - 2026-10-06
+
+### Fixed
+- Decision-mode shell tab completion for `-dc`/`--decision`: partial profile
+  names (e.g. `ol -dc ns`) complete to profiles; after a profile, trailing
+  tokens complete as files instead of dumping every CLI flag or treating the
+  path as the optional prompt positional
+- Bare `ol -dc <Tab>` lists profile names; path-like / unmatched prefixes still
+  complete evidence files (path-promotion)
+
+### Changed
+- argcomplete now uses `always_complete_options=False` so option flags are
+  suggested when the token starts with `-`, not on every empty prefix
+
 ## [0.3.5] - 2026-10-06
 
 ### Fixed

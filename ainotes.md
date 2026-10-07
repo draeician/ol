@@ -233,3 +233,16 @@ Review copy is `PLAN-systemone.md`. `--dc` posts to `/v1/systemone`. Text defaul
 - Exit code 130 (128 + SIGINT); stderr message "Interrupted."
 - Console script entry `ol.cli:main` is covered; no need for per-loop catch
   unless we want partial-result messaging later.
+
+## 0.3.6: Fix -dc tab completion
+
+- Root cause: argcomplete `always_complete_options=True` + optional prompt
+  positional open alongside `-dc` nargs='?' flooded empty-prefix completions
+  with every flag; after a profile, prompt+files both ran as FilesCompleter
+  and empty PREFIX showed the flag wall.
+- Fix: `always_complete_options=False`; `complete_prompt_positional` returns
+  [] when decision mode active; `complete_files_positional` suppresses the
+  whole-dir dump on bare `ol -dc <Tab>` and prefers profiles over incidental
+  filenames when a profile prefix matches; path-like / unmatched prefixes
+  still complete files for path-promotion.
+- Verified via `_ARGCOMPLETE_STDOUT_FILENAME` simulations.

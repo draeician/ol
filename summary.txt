@@ -21,7 +21,13 @@ ol is a Python CLI wrapper for Ollama, supporting both local and remote instance
 - Tab completion (argcomplete)
 - Version management
 
-**Version:** 0.3.5 (2026-10-06)
+**Version:** 0.3.6 (2026-10-06)
+
+**Recent Changes (0.3.6):**
+- Fixed -dc/--decision shell tab completion (argcomplete nargs='?' pitfall)
+- Partial profiles (ol -dc ns) complete to profile names; post-profile tokens complete files
+- always_complete_options=False; prompt positional suppressed in decision mode
+- Bare ol -dc <Tab> lists profiles; path-like / unmatched prefixes complete evidence files
 
 **Recent Changes (0.3.5):**
 - Ctrl+C / KeyboardInterrupt at CLI top-level exits with code 130

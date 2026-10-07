@@ -156,3 +156,35 @@ Pressing Ctrl+C during `ol` (especially `-dc` / multi-image loops) currently dum
 1. Ctrl+C during `ol -dc ...` exits without traceback
 2. Exit code 130 (or documented equivalent)
 3. PR open as 0.3.5
+
+---
+# Task: Fix ol -dc shell tab completion
+
+Repo: ~/git/personal/ol (draeician/ol). New branch from up-to-date main.
+
+## Problem
+argcomplete + `-dc/--decision` with `nargs='?'` breaks Tab completion:
+1. After `ol -dc ns` (partial profile), argcomplete treats `ns` as a finished optional PROFILE and completes prompt/files instead — no `nsfw` match → Tab does nothing.
+2. After `ol -dc nsfw <partial-file>`, optional `prompt` positional consumes the file token; PREFIX goes empty; completions dump all flags + files and behave poorly for image paths (decision mode almost always wants files, not a free-text prompt).
+
+Registration itself is fine (`eval "$(register-python-argcomplete ol)"` in bashrc).
+
+## Goal
+Make Tab work for:
+- `ol -dc <partial-profile>` → profile names (`nsfw`, etc.)
+- `ol -dc nsfw <partial-file>` → filenames (prefer FilesCompleter; don’t swallow as prompt)
+- `ol -dc <partial-file>` if that’s a supported path (image as evidence with default profile) — keep existing runtime path-promotion behavior; completion should not fight it.
+
+## Approach hints (verify, don’t blindly follow)
+- Fix argcomplete interaction with optional `-dc` PROFILE (known argparse/argcomplete nargs='?' pitfall). Possible approaches: custom completer on `-dc`, `argcomplete.autocomplete(..., always_complete_options=False)`, suppress optional prompt when decision mode is active, or a thin pre-completer. Prefer smallest correct change.
+- When decision mode is active, prefer completing files over the optional prompt positional for trailing tokens that look like paths/prefixes.
+- Keep non-`-dc` completion working.
+- Tests for completer helpers if pure functions; document manual Tab checks in PR.
+- Bump 0.3.5 → 0.3.6; CHANGELOG.
+- Full pytest; commit; push; open PR. Do NOT merge.
+- No sudo / system installs / force-push main.
+
+## Success
+1. Simulated `_ARGCOMPLETE=1` for `ol -dc ns` returns `nsfw` (and filters by prefix).
+2. `ol -dc nsfw 000` returns matching image filenames, not a wall of unrelated flags as the only useful hits.
+3. PR open as 0.3.6.
