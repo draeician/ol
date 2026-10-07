@@ -52,7 +52,7 @@ eval "$(register-python-argcomplete ol)"
 eval "$(register-python-argcomplete ol)"
 ```
 
-Completion covers filesystem paths for `-f`/`--file`, `--output-dir`, and positional content files; model names for `-m`; and `text`/`vision` for `--set-default-*` type arguments.
+Completion covers filesystem paths for `-f`/`--file`, `--output-dir`, and positional content files; model names for `-m`; model types including decision categories for `--set-default-*`; and decision profile names plus evidence file paths for `-dc`/`--decision` (partial profiles and post-profile filenames; path-like tokens support image path-promotion).
 
 ## Environment Variables
 - `OLLAMA_HOST`    : URL of remote Ollama instance (e.g., http://server:11434)

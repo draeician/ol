@@ -45,7 +45,9 @@ Then reload your shell (or `source` the rc file). Tab completion covers:
 
 - Filesystem paths for `-f`/`--file`, `--output-dir`, and positional content files
 - Installed model names for `-m`/`--model`
-- Model types (`text`/`vision`) for the `--set-default-*` commands
+- Model types (`text`/`vision`/`decision`/`decision_vision`) for the `--set-default-*` commands
+- Decision profile names for `-dc`/`--decision` and `--dc-edit`, then evidence file paths
+  (e.g. `ol -dc ns<Tab>` → `nsfw`, `ol -dc nsfw 000<Tab>` → matching images)
 
 ### Using pip (Alternative)
 
