@@ -2361,3 +2361,144 @@ def test_decision_multiple_images_with_each(mocker):
         import os
         os.unlink(img1)
         os.unlink(img2)
+
+
+def _decision_nsfw_profile():
+    """Minimal nsfw-like profile for decision batch tests."""
+    return {
+        'version': 1,
+        'description': 'test nsfw',
+        'input': {'require_image': True},
+        'state': 'The attached image is the item being reviewed.',
+        'questions': {
+            'nsfw': {
+                'type': 'noul',
+                'criteria': {'true': 'NSFW', 'false': 'SFW'},
+            }
+        },
+        'results': {
+            'nsfw': {
+                'negative_below': 0.20,
+                'positive_at_or_above': 0.80,
+                'labels': {
+                    'negative': 'SFW',
+                    'uncertain': 'REVIEW',
+                    'positive': 'NSFW',
+                },
+            }
+        },
+    }
+
+
+def _mock_decision_transport(mocker, side_effect=None):
+    """Mock profile load, capabilities, and System One transport."""
+    mocker.patch('ol.decision.load_profile', return_value=_decision_nsfw_profile())
+    mocker.patch('ol.decision.check_model_capabilities')
+    response = {
+        'model': 'clef-flash',
+        'answers': {'nsfw': {'probability': 0.95}},
+    }
+    return mocker.patch(
+        'ol.decision.make_decision_request',
+        return_value=response,
+        side_effect=side_effect,
+    )
+
+
+def test_decision_auto_each_multiple_images(mocker, capsys):
+    """2+ images without --each auto-imply independent per-image processing."""
+    mock_make = _mock_decision_transport(mocker)
+
+    import tempfile
+    with tempfile.NamedTemporaryFile(suffix='.jpg', delete=False) as f1:
+        f1.write(b'\xff\xd8\xff\xe0')
+        img1 = f1.name
+
+    with tempfile.NamedTemporaryFile(suffix='.jpg', delete=False) as f2:
+        f2.write(b'\xff\xd8\xff\xe0')
+        img2 = f2.name
+
+    try:
+        try:
+            main(['-dc', 'nsfw', img1, img2])
+        except SystemExit as exc:
+            assert exc.code in (0, None)
+
+        assert mock_make.call_count == 2
+        captured = capsys.readouterr()
+        assert img1 in captured.out
+        assert img2 in captured.out
+        # Same labeled human output as explicit --each
+        assert captured.out.count('NSFW') >= 2
+    finally:
+        import os
+        os.unlink(img1)
+        os.unlink(img2)
+
+
+def _parse_concatenated_json(text):
+    """Parse one or more consecutive JSON values (pretty-printed batch output)."""
+    import json
+
+    decoder = json.JSONDecoder()
+    objs = []
+    idx = 0
+    text = text.strip()
+    while idx < len(text):
+        while idx < len(text) and text[idx].isspace():
+            idx += 1
+        if idx >= len(text):
+            break
+        obj, end = decoder.raw_decode(text, idx)
+        objs.append(obj)
+        idx = end
+    return objs
+
+
+def test_decision_auto_each_matches_explicit_each_json(mocker, capsys):
+    """Auto-each JSON batch output matches explicit --each."""
+    import tempfile
+
+    responses = [
+        {'model': 'clef-flash', 'answers': {'nsfw': {'probability': 0.10}}},
+        {'model': 'clef-flash', 'answers': {'nsfw': {'probability': 0.90}}},
+    ]
+
+    with tempfile.NamedTemporaryFile(suffix='.jpg', delete=False) as f1:
+        f1.write(b'\xff\xd8\xff\xe0')
+        img1 = f1.name
+
+    with tempfile.NamedTemporaryFile(suffix='.jpg', delete=False) as f2:
+        f2.write(b'\xff\xd8\xff\xe0')
+        img2 = f2.name
+
+    try:
+        mock_auto = _mock_decision_transport(
+            mocker, side_effect=list(responses)
+        )
+        try:
+            main(['-dc', 'nsfw', '--json', img1, img2])
+        except SystemExit as exc:
+            assert exc.code in (0, None)
+        auto_out = capsys.readouterr().out
+        assert mock_auto.call_count == 2
+
+        mock_explicit = _mock_decision_transport(
+            mocker, side_effect=list(responses)
+        )
+        try:
+            main(['-dc', 'nsfw', '--each', '--json', img1, img2])
+        except SystemExit as exc:
+            assert exc.code in (0, None)
+        explicit_out = capsys.readouterr().out
+        assert mock_explicit.call_count == 2
+
+        assert auto_out == explicit_out
+        auto_records = _parse_concatenated_json(auto_out)
+        assert len(auto_records) == 2
+        assert auto_records[0].get('source') == img1
+        assert auto_records[1].get('source') == img2
+    finally:
+        import os
+        os.unlink(img1)
+        os.unlink(img2)

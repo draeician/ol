@@ -21,7 +21,11 @@ ol is a Python CLI wrapper for Ollama, supporting both local and remote instance
 - Tab completion (argcomplete)
 - Version management
 
-**Version:** 0.3.3 (2026-10-06)
+**Version:** 0.3.4 (2026-10-06)
+
+**Recent Changes (0.3.4):**
+- Decision mode auto-implies `--each` when 2+ images are passed
+- Explicit `--each` still allowed; single-image / clipboard / text-only unchanged
 
 **Recent Changes (0.3.3):**
 - Fixed System One choice formatting: read API `choice` (fallback `value`)

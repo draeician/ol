@@ -125,3 +125,13 @@ But `src/ol/decision.py` `format_decision_output` reads `answer.get('value')`, s
 4. Add regression tests with mocked answers using the `choice` key.
 5. Patch bump 0.3.2 → 0.3.3 and CHANGELOG.
 6. Run full pytest. Commit on this branch. Push to origin and open a PR against main (gh pr create). Do not merge.
+---
+# Task: Auto-imply --each when multiple images are passed to ol -dc
+
+Repo: ~/git/personal/ol (GitHub: draeician/ol). Work on a new branch from up-to-date main.
+
+## Goal
+Today, multiple image files with `-dc` require an explicit `--each` flag; without it, CLI errors:
+"Multiple images require --each in this release."
+
+Change behavior so that when 2+ images are passed to decision mode, `--each` is implied automatically (process each image independently, same as today's `--each` path). Keep `--each` as a valid explicit flag (no-op when already implied, or still allowed).

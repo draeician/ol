@@ -153,7 +153,8 @@ behavior. Do not advertise the following commands as available before delivery.
   calibrated guarantees. Errors are not negative classifications.
 - Add explicit clipboard input (`-c`, leaving the clipboard unchanged), offline
   profile list/edit, completion, sequential `--each`, and stable human output
-  with explicit JSON/JSONL. Multiple images require `--each` in the first release.
+  with explicit JSON/JSONL. Multiple images auto-imply `--each` (independent
+  per-image decisions); explicit `--each` remains valid.
 - Decision requests alone use non-streaming `POST /v1/systemone`, with top-level
   base64 images. Ordinary text/image requests retain their existing transports.
   Do not add temperatures, an SDK, silent fallback, or automatic server changes.
